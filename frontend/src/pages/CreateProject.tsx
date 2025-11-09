@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,8 @@ import {
   Check,
   AlertCircle,
   Play,
-  Save
+  Save,
+  BarChart3
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -46,21 +47,21 @@ const CreateProject = () => {
     reader.readAsText(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleFileUpload(files[0]);
+      handleFileUpload(files[0] as File);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
   };
@@ -108,6 +109,20 @@ CREATE TABLE orders (
 );
 
 -- Additional tables and relationships...`);
+    }
+  };
+
+  const handleDataVisualization = () => {
+    if (selectedEngine && dslContent) {
+      // Navigate to data visualization page with project data
+      navigate("/data-visualization", {
+        state: {
+          projectName: projectName || "Untitled Project",
+          engine: engines.find(e => e.id === selectedEngine)?.name || selectedEngine,
+          dslContent,
+          parsedData
+        }
+      });
     }
   };
 
@@ -280,6 +295,16 @@ tables:
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Generate SQL
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
+                    onClick={handleDataVisualization}
+                    disabled={!selectedEngine || !dslContent}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Data Visualization
                   </Button>
 
                   <Button
