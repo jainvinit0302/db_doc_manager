@@ -106,8 +106,4 @@ The backend API will be available at `http://localhost:5000`
 
 ## Contributing
 
-Made by IIITH Students | 2025
-
-## License
-
-MIT License
+Made by Vinit Jain - IIITH Students | 2025
