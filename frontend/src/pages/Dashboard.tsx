@@ -13,6 +13,7 @@ import {
 import { Database, Plus, Search, FolderOpen, Trash2, LogOut, User } from "lucide-react";
 import { ProjectCard } from "@/components/ProjectCard";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
 
 interface Project {
   id: string;
@@ -33,11 +34,9 @@ const Dashboard = () => {
     setProjects(projects.filter((p) => p.id !== id));
   };
 
-  const handleLogout = () => {
-    // Clear any stored authentication data here if needed
-    // localStorage.removeItem('authToken'); // Example
-    navigate("/");
-  };
+
+const { logout } = useAuth();
+const handleLogout = () => logout();
 
   return (
     <div className="min-h-screen bg-background">

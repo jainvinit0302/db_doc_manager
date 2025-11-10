@@ -1,19 +1,31 @@
+// src/pages/Login.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Database } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth(); // 👈 from AuthProvider
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // This allows redirecting user back to the protected route they came from
+  const from = (location.state as any)?.from?.pathname || "/dashboard";
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // For now, just navigate to dashboard
-    navigate("/dashboard");
+
+    // (Optional) add your API authentication here instead of fake token
+    const fakeToken = "FAKE_AUTH_TOKEN";
+    login(fakeToken); // 👈 saves token to localStorage
+
+    // redirect user to target route (dashboard or saved path)
+    navigate(from, { replace: true });
   };
 
   return (
@@ -28,7 +40,9 @@ const Login = () => {
               </div>
             </div>
             <h1 className="text-2xl font-bold text-foreground">DBDocManager</h1>
-            <p className="text-sm text-muted-foreground">DSL-driven Data Lineage & Documentation</p>
+            <p className="text-sm text-muted-foreground">
+              DSL-driven Data Lineage & Documentation
+            </p>
           </div>
 
           {/* Login Form */}
@@ -64,7 +78,7 @@ const Login = () => {
 
           {/* Link to Signup */}
           <div className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            Don’t have an account?{" "}
             <button
               type="button"
               onClick={() => navigate("/signup")}
