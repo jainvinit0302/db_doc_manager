@@ -1,31 +1,35 @@
 {
-  "name": "dbdoc-backend",
-  "version": "1.0.0",
-  "description": "Backend API for DBDocManager - DSL-driven Database Documentation & Lineage",
-  "main": "src/app.js",
+  "name": "dbdoc-manager",
+  "version": "0.1.0",
+  "description": "DSL-driven documentation & lineage for relationalized data models",
+  "main": "dist/cli.js",
+  "bin": {
+    "dbdoc": "dist/cli.js"
+  },
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "build": "tsc -p .",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "lint": "eslint . --ext .ts",
     "test": "jest"
   },
-  "keywords": [
-    "database",
-    "documentation",
-    "dsl",
-    "lineage",
-    "api"
-  ],
-  "author": "IIITH Students",
+  "author": "Your Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
+    "ajv": "^8.12.0",
+    "ajv-formats": "^3.0.1",
+    "commander": "^10.0.0",
+    "glob": "^10.2.7",
+    "js-yaml": "^4.1.0",
+    "mkdirp": "^3.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "jest": "^29.7.0"
+    "@types/glob": "^8.1.0",
+    "@types/jest": "^29.5.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.3.1",
+    "jest": "^29.6.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.3"
   }
 }

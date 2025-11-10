@@ -1,0 +1,113 @@
+{
+  "$id": "https://example.com/dbdoc.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["project", "targets", "sources", "mappings"],
+  "properties": {
+    "project": { "type": "string" },
+    "owners": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["db","engine","schema","tables"],
+        "properties": {
+          "db": { "type": "string" },
+          "engine": { "type": "string" },
+          "schema": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name","columns"],
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name","type"],
+                    "properties": {
+                      "name": { "type": "string" },
+                      "type": { "type": "string" },
+                      "description": { "type": "string" },
+                      "pk": { "type": "boolean" },
+                      "fk": {
+                        "type": "object",
+                        "properties": {
+                          "target": { "type": "string" },
+                          "on_delete": { "type": "string" }
+                        }
+                      },
+                      "unique": { "type": "boolean" },
+                      "not_null": { "type": "boolean" },
+                      "default": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id","kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["mongodb","postgres","mysql","snowflake","file"] },
+          "conn": { "type": "string" },
+          "db": { "type": "string" },
+          "collection": { "type": "string" },
+          "table": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target"],
+        "properties": {
+          "target": { "type": "string" },
+          "from": {
+            "type": "object",
+            "oneOf": [
+              {
+                "required": ["source_id","path"],
+                "properties": {
+                  "source_id": { "type": "string" },
+                  "path": { "type": "string" },
+                  "transform": { "type": "string" },
+                  "default": { "type": ["string","number","boolean", "null"] },
+                  "fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": ["string","object"]
+                    }
+                  }
+                }
+              },
+              {
+                "required": ["rule"],
+                "properties": {
+                  "rule": { "type": "string" }
+                }
+              }
+            ]
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}
