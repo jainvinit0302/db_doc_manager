@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/auth/AuthProvider";
 import { 
   ArrowLeft, 
   Search,
@@ -15,8 +17,17 @@ import {
   GitBranch,
   Map,
   FileText,
-  Table
+  Table,
+  LogOut, User 
 } from "lucide-react";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const DataVisualization = () => {
@@ -203,27 +214,101 @@ const DataVisualization = () => {
         return renderERDiagram();
     }
   };
-
+  const { logout } = useAuth();
+  const handleLogout = () => logout();
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center px-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="relative h-16 flex items-center">
+        {/* LEFT: Back button */}
+        <div className="absolute left-10 top-1/2 -translate-y-1/2 z-30">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate("/create-project")}
-            className="mr-4"
+            className="flex items-center gap-2 px-3 transition-colors hover:text-primary hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label="Back to project"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Project
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Back to Project</span>
           </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">{projectData.projectName}</h1>
-            <p className="text-sm text-muted-foreground">{projectData.engine} Database Visualization</p>
+        </div>
+
+        {/* RIGHT: Avatar / Profile */}
+        <div className="absolute right-10 top-1/2 -translate-y-1/2 z-30">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="
+                  h-10 w-10 rounded-full p-0 transition-colors
+                  hover:bg-primary/10 hover:text-primary
+                  focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2
+                "
+                aria-label="User menu"
+                title="User menu"
+              >
+                <Avatar>
+                  <AvatarFallback className="transition-colors">VJ</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">Vinit Jain</p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    vinit.jain@example.com
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* MAIN CONTAINER — spaced to prevent overlap with side elements */}
+        <div className="container flex items-center justify-between w-full pl-[160px] pr-[160px]">
+          {/* LEFT: Branding */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Database className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <h2 className="text-sm font-semibold whitespace-nowrap">DBDocManager</h2>
+              <p className="text-xs text-muted-foreground">
+                {projectData?.projectName
+                  ? `— ${projectData.projectName}`
+                  : "— Untitled Project"}
+              </p>
+            </div>
+          </div>
+
+          {/* CENTER: Project Title */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center pointer-events-none">
+            <h1 className="text-lg font-semibold truncate max-w-[60vw]">
+              {projectData?.projectName || "Untitled Project"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {projectData?.engine
+                ? `${projectData.engine} Database Visualization`
+                : "Database Visualization"}
+            </p>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
       {/* Main Layout */}
       <div className="flex h-[calc(100vh-4rem)]">

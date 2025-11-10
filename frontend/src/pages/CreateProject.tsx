@@ -5,21 +5,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  ArrowLeft, 
-  Upload, 
-  FileText, 
-  Database, 
+import {
+  ArrowLeft,
+  Upload,
+  FileText,
+  Database,
   Check,
   AlertCircle,
   Play,
   Save,
-  BarChart3
+  BarChart3,
+  LogOut,
+  User
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/auth/AuthProvider";
+
 
 const CreateProject = () => {
   const navigate = useNavigate();
+
+  // <-- MOVE hook call inside the component
+  const { logout } = useAuth();
+  const handleLogout = () => {
+    // optionally catch errors
+    try {
+      logout();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
+
   const [projectName, setProjectName] = useState("");
   const [selectedEngine, setSelectedEngine] = useState("");
   const [dslContent, setDslContent] = useState("");
@@ -68,16 +93,20 @@ const CreateProject = () => {
 
   const mockParseDSL = (content: string) => {
     // Mock parsed data - replace with actual DSL parsing logic
-    const lines = content.split('\n');
+    const lines = content.split("\n");
     const tableMatches = content.match(/^\s*\w+:/gm) || [];
     const columnMatches = content.match(/^\s*-\s+\w+:/gm) || [];
-    
+
     setParsedData({
       totalTables: Math.max(tableMatches.length, 1),
       sources: Math.max(Math.floor(tableMatches.length / 3), 1),
-      tables: tableMatches.map(match => match.replace(/^\s*/, '').replace(':', '')).slice(0, 10),
-      relationships: Math.floor(columnMatches.filter(col => col.includes('foreign_key')).length),
-      isValid: content.trim().length > 0 && !content.includes('error')
+      tables: tableMatches
+        .map((match) => match.replace(/^\s*/, "").replace(":", ""))
+        .slice(0, 10),
+      relationships: Math.floor(
+        columnMatches.filter((col) => col.includes("foreign_key")).length
+      ),
+      isValid: content.trim().length > 0 && !content.includes("error"),
     });
   };
 
@@ -90,7 +119,9 @@ const CreateProject = () => {
   const handleGenerateSQL = () => {
     if (selectedEngine && dslContent) {
       // Mock SQL generation - replace with actual generation logic
-      setGeneratedSQL(`-- Generated SQL for ${engines.find(e => e.id === selectedEngine)?.name}
+      setGeneratedSQL(`-- Generated SQL for ${
+        engines.find((e) => e.id === selectedEngine)?.name
+      }
 CREATE DATABASE example_db;
 
 CREATE TABLE users (
@@ -118,10 +149,11 @@ CREATE TABLE orders (
       navigate("/data-visualization", {
         state: {
           projectName: projectName || "Untitled Project",
-          engine: engines.find(e => e.id === selectedEngine)?.name || selectedEngine,
+          engine:
+            engines.find((e) => e.id === selectedEngine)?.name || selectedEngine,
           dslContent,
-          parsedData
-        }
+          parsedData,
+        },
       });
     }
   };
@@ -132,7 +164,7 @@ CREATE TABLE orders (
       name: projectName,
       engine: selectedEngine,
       dsl: dslContent,
-      sql: generatedSQL
+      sql: generatedSQL,
     });
     navigate("/dashboard");
   };
@@ -141,32 +173,80 @@ CREATE TABLE orders (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center px-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate("/dashboard")}
-            className="mr-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div className="flex-1">
-            <Input
-              placeholder="Enter project name..."
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="max-w-md"
-            />
+        <div className="container px-4">
+          <div className="flex items-center h-16 justify-between">
+            {/*Back button */}
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+                className="mr-2"
+                aria-label="Back to dashboard"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+              </Button>
+            </div>
+
+            <div className="flex-1 flex justify-center px-4">
+              <div className="w-full max-w-xl"> 
+                <Input
+                  placeholder="Enter project name..."
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full"
+                  aria-label="Project name"
+                />
+              </div>
+            </div>
+
+            {/* Avatar + dropdown */}
+            <div className="flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-10 w-10 rounded-full p-0"
+                    aria-label="User menu"
+                  >
+                    <Avatar>
+                      <AvatarFallback>VJ</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">Vinit Jain</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        vinit.jain@example.com
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </header>
 
+
       {/* Three-Panel Layout */}
       <main className="container px-4 py-6">
         <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-8rem)]">
-          
-          {/* LEFT PANEL - Upload DSL (25%) */}
+          {/* LEFT PANEL */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
@@ -209,9 +289,7 @@ CREATE TABLE orders (
                       }}
                     />
                     {uploadedFile && (
-                      <div className="mt-2 p-2 bg-muted rounded text-xs">
-                        📄 {uploadedFile.name}
-                      </div>
+                      <div className="mt-2 p-2 bg-muted rounded text-xs">📄 {uploadedFile.name}</div>
                     )}
                   </div>
                 </div>
@@ -222,21 +300,7 @@ CREATE TABLE orders (
                 <div>
                   <label className="text-sm font-medium mb-2 block">2. Paste Code</label>
                   <Textarea
-                    placeholder="Paste your DSL code here...
-
-Example:
-tables:
-  users:
-    columns:
-      - id: integer, primary_key
-      - username: varchar(255), not_null
-      - email: varchar(255), unique
-    
-  orders:
-    columns:
-      - id: integer, primary_key
-      - user_id: integer, foreign_key(users.id)
-      - total: decimal(10,2)"
+                    placeholder="Paste your DSL code here..."
                     value={dslContent}
                     onChange={(e) => setDslContent(e.target.value)}
                     className="min-h-[300px] font-mono text-sm"
@@ -246,7 +310,7 @@ tables:
             </Card>
           </div>
 
-          {/* MIDDLE PANEL - Target Engine & Actions (25%) */}
+          {/* MIDDLE PANEL */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
@@ -276,7 +340,7 @@ tables:
                 {/* Actions */}
                 <div className="space-y-3">
                   <h3 className="font-medium">Actions</h3>
-                  
+
                   <Button
                     variant="secondary"
                     className="w-full justify-start"
@@ -320,7 +384,7 @@ tables:
             </Card>
           </div>
 
-          {/* RIGHT PANEL - Preview (50%) */}
+          {/* RIGHT PANEL */}
           <div className="col-span-6">
             <Card className="h-full">
               <CardHeader>
@@ -379,24 +443,21 @@ tables:
                     Generated SQL
                     {selectedEngine && (
                       <Badge variant="outline" className="text-xs">
-                        {engines.find(e => e.id === selectedEngine)?.name}
+                        {engines.find((e) => e.id === selectedEngine)?.name}
                       </Badge>
                     )}
                   </h3>
                   {generatedSQL ? (
                     <div className="bg-muted rounded-lg p-4 max-h-[400px] overflow-auto">
-                      <pre className="text-sm font-mono whitespace-pre-wrap">
-                        {generatedSQL}
-                      </pre>
+                      <pre className="text-sm font-mono whitespace-pre-wrap">{generatedSQL}</pre>
                     </div>
                   ) : (
                     <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
                       <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">
-                        {selectedEngine && dslContent 
-                          ? "Click 'Generate SQL' to see the preview" 
-                          : "Select an engine and upload DSL to generate SQL"
-                        }
+                        {selectedEngine && dslContent
+                          ? "Click 'Generate SQL' to see the preview"
+                          : "Select an engine and upload DSL to generate SQL"}
                       </p>
                     </div>
                   )}
