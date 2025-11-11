@@ -106,6 +106,6 @@ The backend API will be available at `http://localhost:5000`
 
 ## Contributing
 
-Made by Vinit Jain & Kedar Dalvi - IIITH Students | 2025
+Made by Vinit Jain, Rinkesh Verma, Suresh Kumar, Jagadish Kollu & Kedar Dalvi - IIITH Students | 2025
 
 npm install js-yaml ajv ajv-formats mermaid
