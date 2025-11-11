@@ -8,21 +8,23 @@ const commander_1 = require("commander");
 const path_1 = __importDefault(require("path"));
 const parser_1 = require("./parser");
 const generator_1 = require("./generator");
+const validator_1 = require("./validator");
 const program = new commander_1.Command();
 program.name('dbdoc').description('DBDocManager CLI').version('0.1.0');
 program
     .command('validate')
-    .description('Validate .dbdoc files against schema and run basic checks')
+    .description('Validate .dboc files against schema and run basic checks')
     .option('--dir <dir>', 'directory containing dbdoc files', '.dbdoc')
     .action((opts) => {
     try {
-        const res = (0, parser_1.loadDbdocFiles)(opts.dir);
-        if (res.length === 0) {
-            console.error(`No dbdoc files found in ${opts.dir}`);
+        const files = (0, parser_1.loadDbdocFiles)(opts.dir);
+        if (files.length === 0) {
+            console.error(`No dbdoc files found in ${opts.dir}. Please add DSL files under ${opts.dir}`);
             process.exit(2);
         }
+        // 1) Structural validation per file (AJV)
         let hadErrors = false;
-        for (const f of res) {
+        for (const f of files) {
             const { parsed, path: p } = f;
             const result = (0, parser_1.validateStructure)(parsed);
             if (!result.valid) {
@@ -34,7 +36,28 @@ program
                 console.log(`${p}: OK`);
             }
         }
-        process.exit(hadErrors ? 1 : 0);
+        // 2) Build aggregated AST (merge targets/sources/mappings) and run referential validation
+        const aggregated = files.map(f => f.parsed).reduce((acc, cur) => {
+            acc.targets = (acc.targets || []).concat(cur.targets || []);
+            acc.sources = (acc.sources || []).concat(cur.sources || []);
+            acc.mappings = (acc.mappings || []).concat(cur.mappings || []);
+            acc.project = acc.project || cur.project;
+            return acc;
+        }, {});
+        const ast = (0, parser_1.normalize)(aggregated);
+        const { errors: refErrors, warnings: refWarnings } = (0, validator_1.referentialValidate)(ast);
+        if (refWarnings && refWarnings.length) {
+            console.warn('Referential validation warnings:');
+            for (const w of refWarnings)
+                console.warn('  -', w);
+        }
+        if (refErrors && refErrors.length) {
+            console.error('Referential validation errors:');
+            for (const e of refErrors)
+                console.error('  -', e);
+        }
+        const exitCode = (hadErrors || (refErrors && refErrors.length > 0)) ? 1 : 0;
+        process.exit(exitCode);
     }
     catch (err) {
         console.error('Error during validation:', err);

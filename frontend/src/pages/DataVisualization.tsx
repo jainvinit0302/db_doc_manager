@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+  import DbDocPanel from '@/components/DbDocPanel';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
 import { 
@@ -141,12 +142,8 @@ const DataVisualization = () => {
       <div className="h-full bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Share2 className="w-16 h-16 mx-auto text-muted-foreground" />
-          <div>
-            <h3 className="text-lg font-medium">No ER Diagram Available</h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Upload and validate your DSL to generate an interactive Entity-Relationship diagram 
-              showing table relationships and data flow.
-            </p>
+          <div className="h-[600px]">
+            <DbDocPanel />
           </div>
         </div>
       </div>
