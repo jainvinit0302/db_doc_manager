@@ -7,6 +7,17 @@ import { generateArtifacts } from '../services/dbdocApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+type Artifacts = {
+  csv?: string;
+  mermaids?: Array<{ name: string; content: string }>;
+  lineage?: any; // lineage JSON returned from /api/generate
+  referentialWarnings?: string[];
+};
+
+type DbDocPanelProps = {
+  onArtifacts?: (artifacts: Artifacts) => void;
+};
+
 type ValidateResponse = {
   valid: boolean;
   ajvErrors?: any[];
@@ -14,7 +25,7 @@ type ValidateResponse = {
   referentialWarnings?: string[];
 };
 
-export default function DbDocPanel() {
+export default function DbDocPanel({ onArtifacts }: DbDocPanelProps) {
   const [yamlText, setYamlText] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResponse | null>(null);
@@ -301,18 +312,29 @@ export default function DbDocPanel() {
     setServerErrors(null);
     try {
       const res = await generateArtifacts(yamlText);
-      // res = { csv, mermaids: [{name,content}], referentialWarnings }
+      // res = { csv, mermaids: [{name,content}], lineage, referentialWarnings }
       setCsvContent(res.csv || '');
       setMermaidFiles(res.mermaids || []);
+
+      // notify parent if callback provided
+      if (onArtifacts) {
+        onArtifacts({
+          csv: res.csv,
+          mermaids: res.mermaids,
+          lineage: res.lineage,
+          referentialWarnings: res.referentialWarnings
+        });
+      }
+
       // also reflect validation info if present
       setValidateResult({
         valid: true,
         ajvErrors: [],
         referentialErrors: res.referentialErrors || [],
-        referentialWarnings: res.referentialWarnings || res.referentialWarnings || []
+        referentialWarnings: res.referentialWarnings || []
       });
     } catch (err: any) {
-      // server returns structured error; normalize
+      // existing error handling (unchanged)
       if (err && err.ajvErrors) {
         setValidateResult({
           valid: false,
@@ -331,6 +353,7 @@ export default function DbDocPanel() {
       setBusy(false);
     }
   }
+
 
   function downloadCSV() {
     if (!csvContent) return;
