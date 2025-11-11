@@ -375,22 +375,6 @@ CREATE TABLE orders (
 
       {/* Inline success/error banners */}
       <main className="container px-4 py-6">
-        {validationSuccessMsg && (
-          <div className="mb-4">
-            <div className="p-3 rounded bg-green-50 text-green-800 text-sm">
-              {validationSuccessMsg}
-            </div>
-          </div>
-        )}
-
-        {validationError && (
-          <div className="mb-4">
-            <div className="p-3 rounded bg-red-50 text-red-800 text-sm">
-              {validationError}
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-8rem)]">
           {/* LEFT PANEL */}
           <div className="col-span-3">
@@ -611,6 +595,19 @@ CREATE TABLE orders (
                       <FileText className="w-4 h-4" />
                       Validation Result
                     </h3>
+                      {/* Inline validation status messages */}
+                      {validationSuccessMsg && (
+                        <div className="mb-4 p-3 rounded bg-green-50 text-green-800 text-sm">
+                          {validationSuccessMsg}
+                        </div>
+                      )}
+
+                      {validationError && (
+                        <div className="mb-4 p-3 rounded bg-red-50 text-red-800 text-sm">
+                          {validationError}
+                        </div>
+                      )}
+
 
                     {validationResult.errors.length > 0 && (
                       <div className="mb-4">
