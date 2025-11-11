@@ -1,4 +1,4 @@
-// src/pages/CreateProject.tsx
+// CreateProject.tsx
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +43,9 @@ type ValidationResult = {
   warnings: ValidationError[];
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
+const API_BASE = process.env.REACT_APP_API_URL ?? "http://localhost:5001";
 
-const CreateProject: React.FC = () => {
+const CreateProject = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const handleLogout = () => {
@@ -68,7 +68,6 @@ const CreateProject: React.FC = () => {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [validationSuccessMsg, setValidationSuccessMsg] = useState<string | null>(null);
 
   const engines = [
     { id: "postgres", name: "PostgreSQL", icon: "🐘" },
@@ -131,119 +130,44 @@ const CreateProject: React.FC = () => {
     // reset previous validation state
     setValidationResult(null);
     setValidationError(null);
-    setValidationSuccessMsg(null);
 
-    if (!dslContent || dslContent.trim().length === 0) {
+    if (!dslContent) {
       setValidationError("Please paste or upload a DSL file before validating.");
       return;
     }
 
-    // quick client preview
+    // keep parsed summary as well (so preview shows quick feedback)
     mockParseDSL(dslContent);
 
     setValidating(true);
-
     try {
       const resp = await fetch(`${API_BASE}/api/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // backend expects dsl as a plain string field
+        // backend expects dsl as a string
         body: JSON.stringify({ dsl: dslContent }),
       });
 
-      // If server returned non-2xx, read text to get detailed message
       if (!resp.ok) {
         const text = await resp.text();
-        // some servers return JSON error, try to parse
-        try {
-          const parsed = JSON.parse(text);
-          throw new Error(
-            parsed?.message || `Server returned ${resp.status}: ${JSON.stringify(parsed)}`
-          );
-        } catch {
-          // not JSON, use raw text
-          throw new Error(`Server returned ${resp.status}: ${text}`);
-        }
+        throw new Error(`Server returned ${resp.status}: ${text}`);
       }
 
-      // try JSON parse, but be defensive
-      const json = await resp.json().catch(async (err) => {
-        // fallback: maybe server sent text
-        const text = await resp.text();
-        throw new Error(`Invalid JSON from server: ${text}`);
-      });
-
-      // Basic shape guard
-      const resultIsValidShape =
-        json && typeof json === "object" && "valid" in json && Array.isArray(json.errors) && Array.isArray(json.warnings);
-
-      if (!resultIsValidShape) {
-        console.warn("Validator returned unexpected shape:", json);
-        throw new Error("Validator returned unexpected response. Check server logs.");
-      }
-
-      const serverResult: ValidationResult = {
+      const json = await resp.json();
+      // validate server response shape, then set
+      setValidationResult({
         valid: !!json.valid,
         errors: Array.isArray(json.errors) ? json.errors : [],
         warnings: Array.isArray(json.warnings) ? json.warnings : [],
-      };
-
-      setValidationResult(serverResult);
-      setParsedData((prev: any) => ({ ...(prev || {}), isValid: !!json.valid }));
-
-      if (serverResult.valid) {
-        setValidationSuccessMsg("DSL validated successfully");
-        setValidationError(null);
-      } else {
-        // show first error as a banner and keep errors visible in panel
-        const primary = serverResult.errors?.[0]?.message ?? "Validation failed";
-        setValidationSuccessMsg(null);
-        setValidationError(`Validation failed: ${primary}`);
-      }
-    } catch (err: any) {
-      console.error("Validation error:", err);
-      const msg = err?.message ?? String(err);
-      setValidationError(msg);
-      setValidationSuccessMsg(null);
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  // Save validated project to backend (example endpoint)
-  const saveValidatedProject = async () => {
-    if (!validationResult || !validationResult.valid) {
-      setValidationError("Please validate your DSL successfully before saving.");
-      setValidationSuccessMsg(null);
-      return;
-    }
-
-    const payload = {
-      name: projectName || "Untitled Project",
-      engine: selectedEngine || null,
-      dsl: dslContent,
-      validation: validationResult,
-    };
-
-    try {
-      const resp = await fetch(`${API_BASE}/api/projects`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
       });
 
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`Save failed: ${resp.status} ${text}`);
-      }
-
-      setValidationSuccessMsg("Project saved");
-      setValidationError(null);
-      navigate("/dashboard");
+      // Optionally use server feedback to update parsedData.isValid
+      setParsedData((prev: any) => ({ ...(prev || {}), isValid: !!json.valid }));
     } catch (err: any) {
-      console.error("Save error:", err);
-      setValidationError(err?.message ?? "Failed to save project");
-      setValidationSuccessMsg(null);
+      console.error("Validation error:", err);
+      setValidationError(err.message ?? "Validation request failed");
+    } finally {
+      setValidating(false);
     }
   };
   // ----------------------------------------------------
@@ -290,12 +214,15 @@ CREATE TABLE orders (
   };
 
   const handleSaveAndContinue = () => {
-    // Use saveValidatedProject to ensure only validated projects are saved
-    saveValidatedProject();
+    console.log("Saving project:", {
+      name: projectName,
+      engine: selectedEngine,
+      dsl: dslContent,
+      sql: generatedSQL,
+      validation: validationResult,
+    });
+    navigate("/dashboard");
   };
-
-  // UI conditions: only allow generate/visualize/save when validation is successful
-  const isValidated = validationResult?.valid === true;
 
   return (
     <div className="min-h-screen bg-background">
@@ -370,24 +297,8 @@ CREATE TABLE orders (
         </div>
       </header>
 
-      {/* Inline success/error banners */}
+      {/* Three-Panel Layout */}
       <main className="container px-4 py-6">
-        {validationSuccessMsg && (
-          <div className="mb-4">
-            <div className="p-3 rounded bg-green-50 text-green-800 text-sm">
-              {validationSuccessMsg}
-            </div>
-          </div>
-        )}
-
-        {validationError && (
-          <div className="mb-4">
-            <div className="p-3 rounded bg-red-50 text-red-800 text-sm">
-              {validationError}
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-8rem)]">
           {/* LEFT PANEL */}
           <div className="col-span-3">
@@ -498,7 +409,7 @@ CREATE TABLE orders (
                     variant="secondary"
                     className="w-full justify-start"
                     onClick={handleGenerateSQL}
-                    disabled={!isValidated || !selectedEngine || !dslContent}
+                    disabled={!selectedEngine || !dslContent}
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Generate SQL
@@ -508,7 +419,7 @@ CREATE TABLE orders (
                     variant="secondary"
                     className="w-full justify-start"
                     onClick={handleDataVisualization}
-                    disabled={!isValidated || !selectedEngine || !dslContent}
+                    disabled={!selectedEngine || !dslContent}
                   >
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Data Visualization
@@ -517,7 +428,7 @@ CREATE TABLE orders (
                   <Button
                     className="w-full justify-start"
                     onClick={handleSaveAndContinue}
-                    disabled={!isValidated || !projectName || !selectedEngine || !dslContent}
+                    disabled={!projectName || !selectedEngine || !dslContent}
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save & Continue

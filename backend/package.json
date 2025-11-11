@@ -4,8 +4,9 @@
   "description": "Backend API for DBDocManager - DSL-driven Database Documentation & Lineage",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
     "test": "jest"
   },
   "keywords": [
@@ -18,14 +19,23 @@
   "author": "IIITH Students",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "helmet": "^7.2.0",
+    "js-yaml": "^4.1.0",
+    "morgan": "^1.10.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "jest": "^29.7.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/helmet": "^0.0.48",
+    "@types/js-yaml": "^4.0.9",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.10.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,8 +1,12 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-require('dotenv').config();
+// backend/src/app.ts
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import validateRouter from './routes/validate'; 
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -22,6 +26,7 @@ app.get('/', (req, res) => {
     description: 'DSL-driven Database Documentation & Lineage API'
   });
 });
+app.use('/api', validateRouter);
 
 app.get('/health', (req, res) => {
   res.json({
@@ -31,7 +36,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
@@ -52,4 +57,5 @@ app.listen(PORT, () => {
   console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
 });
 
-module.exports = app;
+// Export app for testing if needed
+export default app;

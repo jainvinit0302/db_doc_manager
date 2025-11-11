@@ -10,21 +10,18 @@ import { useAuth } from "@/auth/AuthProvider";
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth(); // 👈 from AuthProvider
+  const { login } = useAuth(); 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // This allows redirecting user back to the protected route they came from
   const from = (location.state as any)?.from?.pathname || "/dashboard";
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // (Optional) add your API authentication here instead of fake token
     const fakeToken = "FAKE_AUTH_TOKEN";
-    login(fakeToken); // 👈 saves token to localStorage
+    login(fakeToken); 
 
-    // redirect user to target route (dashboard or saved path)
     navigate(from, { replace: true });
   };
 

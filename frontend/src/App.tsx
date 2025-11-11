@@ -11,7 +11,6 @@ import CreateProject from "./pages/CreateProject";
 import DataVisualization from "./pages/DataVisualization";
 import NotFound from "./pages/NotFound";
 import Visualization from "./pages/Visualization";
-
 import { AuthProvider } from "@/auth/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
