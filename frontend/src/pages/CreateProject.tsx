@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
+import YAML from "yaml"; 
 
 type ValidationError = {
   type: string;
@@ -127,7 +128,7 @@ const CreateProject: React.FC = () => {
   };
 
   // ---------- NEW: call backend validate API ----------
-  const handleValidateDSL = async () => {
+    const handleValidateDSL = async () => {
     // reset previous validation state
     setValidationResult(null);
     setValidationError(null);
@@ -140,35 +141,38 @@ const CreateProject: React.FC = () => {
 
     // quick client preview
     mockParseDSL(dslContent);
-
     setValidating(true);
+
+    // Parse YAML -> JS object before sending
+    let parsedDSL: any;
+    try {
+      // YAML.parse can parse YAML or JSON content
+      parsedDSL = YAML.parse(dslContent);
+    } catch (err: any) {
+      setValidating(false);
+      setValidationError(`YAML parse error: ${err?.message ?? String(err)}`);
+      return;
+    }
 
     try {
       const resp = await fetch(`${API_BASE}/api/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // backend expects dsl as a plain string field
-        body: JSON.stringify({ dsl: dslContent }),
+        // send the DSL object itself — backend expects a DSL object
+        body: JSON.stringify(parsedDSL),
       });
 
-      // If server returned non-2xx, read text to get detailed message
       if (!resp.ok) {
         const text = await resp.text();
-        // some servers return JSON error, try to parse
         try {
           const parsed = JSON.parse(text);
-          throw new Error(
-            parsed?.message || `Server returned ${resp.status}: ${JSON.stringify(parsed)}`
-          );
+          throw new Error(parsed?.message || `Server returned ${resp.status}: ${JSON.stringify(parsed)}`);
         } catch {
-          // not JSON, use raw text
           throw new Error(`Server returned ${resp.status}: ${text}`);
         }
       }
 
-      // try JSON parse, but be defensive
-      const json = await resp.json().catch(async (err) => {
-        // fallback: maybe server sent text
+      const json = await resp.json().catch(async () => {
         const text = await resp.text();
         throw new Error(`Invalid JSON from server: ${text}`);
       });
@@ -195,7 +199,6 @@ const CreateProject: React.FC = () => {
         setValidationSuccessMsg("DSL validated successfully");
         setValidationError(null);
       } else {
-        // show first error as a banner and keep errors visible in panel
         const primary = serverResult.errors?.[0]?.message ?? "Validation failed";
         setValidationSuccessMsg(null);
         setValidationError(`Validation failed: ${primary}`);

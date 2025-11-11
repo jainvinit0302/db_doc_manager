@@ -87,11 +87,15 @@ export interface Source {
  */
 export interface Mapping {
   target: string; // Fully qualified: db.schema.table.column
-  from: {
-    source_id: string;
-    path: string;
-    transform?: string;
-  };
+  from:
+    | {
+        source_id: string;
+        path: string;
+        transform?: string;
+      }
+    | {
+        rule: string;
+      };
   description?: string;
 }
 

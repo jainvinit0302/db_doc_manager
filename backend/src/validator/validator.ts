@@ -1,5 +1,10 @@
 // src/validator/validator.ts
-import { Project, ValidationResult, ValidationError, ValidationWarning } from '../types/ast';
+import {
+  Project,
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+} from "../types/ast";
 
 export class DBDocValidator {
   validate(ast: Project): ValidationResult {
@@ -21,41 +26,43 @@ export class DBDocValidator {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
+  // ------------------ TARGET VALIDATION ------------------
   private validateTargets(ast: Project): ValidationError[] {
     const errors: ValidationError[] = [];
 
-    if (ast.targets.length === 0) {
+    if (!ast.targets || ast.targets.length === 0) {
       errors.push({
-        type: 'MISSING_TARGETS',
-        message: 'No target databases defined'
+        type: "MISSING_TARGETS",
+        message: "No target databases defined",
       });
+      return errors;
     }
 
     for (const target of ast.targets) {
       if (!target.db) {
         errors.push({
-          type: 'INVALID_TARGET',
-          message: 'Target missing database name'
+          type: "INVALID_TARGET",
+          message: "Target missing database name",
         });
       }
 
       if (!target.engine) {
         errors.push({
-          type: 'INVALID_TARGET',
+          type: "INVALID_TARGET",
           message: `Target '${target.db}' missing engine type`,
-          location: target.db
+          location: target.db,
         });
       }
 
       if (!target.tables || target.tables.length === 0) {
         errors.push({
-          type: 'EMPTY_TARGET',
+          type: "EMPTY_TARGET",
           message: `Target '${target.db}' has no tables defined`,
-          location: target.db
+          location: target.db,
         });
       }
 
@@ -63,27 +70,31 @@ export class DBDocValidator {
       for (const table of target.tables || []) {
         if (!table.name) {
           errors.push({
-            type: 'INVALID_TABLE',
-            message: `Table in '${target.db}' missing name`
+            type: "INVALID_TABLE",
+            message: `Table in '${target.db}' missing name`,
           });
         }
 
         if (!table.columns || table.columns.length === 0) {
           errors.push({
-            type: 'EMPTY_TABLE',
+            type: "EMPTY_TABLE",
             message: `Table '${table.name}' has no columns`,
-            location: `${target.db}.${table.name}`
+            location: `${target.db}.${table.name}`,
           });
         }
 
         // Check for duplicate column names
-        const colNames = table.columns.map(c => c.name);
-        const duplicates = colNames.filter((name, idx) => colNames.indexOf(name) !== idx);
+        const colNames = table.columns.map((c) => c.name);
+        const duplicates = colNames.filter(
+          (name, idx) => colNames.indexOf(name) !== idx
+        );
         if (duplicates.length > 0) {
           errors.push({
-            type: 'DUPLICATE_COLUMN',
-            message: `Table '${table.name}' has duplicate columns: ${duplicates.join(', ')}`,
-            location: `${target.db}.${table.name}`
+            type: "DUPLICATE_COLUMN",
+            message: `Table '${table.name}' has duplicate columns: ${duplicates.join(
+              ", "
+            )}`,
+            location: `${target.db}.${table.name}`,
           });
         }
       }
@@ -92,22 +103,31 @@ export class DBDocValidator {
     return errors;
   }
 
+  // ------------------ SOURCE VALIDATION ------------------
   private validateSources(ast: Project): ValidationError[] {
     const errors: ValidationError[] = [];
+
+    if (!ast.sources || ast.sources.length === 0) {
+      errors.push({
+        type: "MISSING_SOURCES",
+        message: "No sources defined in project",
+      });
+      return errors;
+    }
 
     for (const source of ast.sources) {
       if (!source.id) {
         errors.push({
-          type: 'INVALID_SOURCE',
-          message: 'Source missing id'
+          type: "INVALID_SOURCE",
+          message: "Source missing id",
         });
       }
 
       if (!source.kind) {
         errors.push({
-          type: 'INVALID_SOURCE',
+          type: "INVALID_SOURCE",
           message: `Source '${source.id}' missing kind`,
-          location: source.id
+          location: source.id,
         });
       }
     }
@@ -115,82 +135,95 @@ export class DBDocValidator {
     return errors;
   }
 
-  private validateMappings(ast: Project): ValidationError[] {
+  // ------------------ MAPPING VALIDATION ------------------
+    private validateMappings(ast: Project): ValidationError[] {
     const errors: ValidationError[] = [];
 
     // Build index of all targets and sources
     const targetIndex = this.buildTargetIndex(ast);
-    const sourceIds = new Set(ast.sources.map(s => s.id));
+    const sourceIds = new Set(ast.sources.map((s) => s.id));
 
     for (const mapping of ast.mappings) {
-      // Validate target exists
-      if (!targetIndex.has(mapping.target)) {
+        // Validate target exists
+        if (!targetIndex.has(mapping.target)) {
         errors.push({
-          type: 'INVALID_MAPPING_TARGET',
-          message: `Mapping target not found: ${mapping.target}`,
-          location: mapping.target
+            type: "INVALID_MAPPING_TARGET",
+            message: `Mapping target not found: ${mapping.target}`,
+            location: mapping.target,
         });
-      }
+        }
 
-      // Validate source exists
-      if (!sourceIds.has(mapping.from.source_id)) {
-        errors.push({
-          type: 'INVALID_MAPPING_SOURCE',
-          message: `Mapping source not found: ${mapping.from.source_id}`,
-          location: mapping.target
-        });
-      }
+        const from = mapping.from as any;
 
-      // Validate required fields
-      if (!mapping.from.path) {
+        // ✅ If rule-based mapping, skip source/path validation
+        if ("rule" in from) {
+        continue;
+        }
+
+        // ✅ If source-based mapping, perform normal checks
+        if (!from.source_id || !sourceIds.has(from.source_id)) {
         errors.push({
-          type: 'MISSING_MAPPING_PATH',
-          message: `Mapping missing source path: ${mapping.target}`,
-          location: mapping.target
+            type: "INVALID_MAPPING_SOURCE",
+            message: `Mapping source not found: ${from.source_id}`,
+            location: mapping.target,
         });
-      }
+        }
+
+        if (!from.path) {
+        errors.push({
+            type: "MISSING_MAPPING_PATH",
+            message: `Mapping missing source path: ${mapping.target}`,
+            location: mapping.target,
+        });
+        }
     }
 
     return errors;
-  }
+    }
 
+
+  // ------------------ BEST PRACTICES WARNINGS ------------------
   private checkBestPractices(ast: Project): ValidationWarning[] {
     const warnings: ValidationWarning[] = [];
 
-    // Check for missing descriptions
+    if (!ast.targets) return warnings;
+
+    // Missing descriptions
     for (const target of ast.targets) {
       for (const table of target.tables) {
         if (!table.description) {
           warnings.push({
-            type: 'MISSING_DESCRIPTION',
+            type: "MISSING_DESCRIPTION",
             message: `Table '${table.name}' has no description`,
-            location: `${target.db}.${table.name}`
+            location: `${target.db}.${table.name}`,
           });
         }
 
         for (const column of table.columns) {
           if (!column.description) {
             warnings.push({
-              type: 'MISSING_DESCRIPTION',
+              type: "MISSING_DESCRIPTION",
               message: `Column '${column.name}' has no description`,
-              location: `${target.db}.${table.name}.${column.name}`
+              location: `${target.db}.${table.name}.${column.name}`,
             });
           }
         }
       }
     }
 
-    // Check for unmapped columns
-    const mappedTargets = new Set(ast.mappings.map(m => m.target));
+    // Unmapped columns
+    const mappedTargets = new Set(ast.mappings.map((m) => m.target));
     for (const target of ast.targets) {
       for (const table of target.tables) {
         for (const column of table.columns) {
-          const fqn = `${target.db}.${target.schema || 'public'}.${table.name}.${column.name}`;
+          const fqn = `${target.db}.${target.schema || "public"}.${
+            table.name
+          }.${column.name}`;
           if (!mappedTargets.has(fqn)) {
             warnings.push({
-              type: 'UNMAPPED_COLUMN',
+              type: "UNMAPPED_COLUMN",
               message: `Column has no mapping defined`,
-              location: fqn
+              location: fqn,
             });
           }
         }
@@ -200,13 +233,18 @@ export class DBDocValidator {
     return warnings;
   }
 
+  // ------------------ HELPER ------------------
   private buildTargetIndex(ast: Project): Set<string> {
     const index = new Set<string>();
+
+    if (!ast.targets) return index;
 
     for (const target of ast.targets) {
       for (const table of target.tables) {
         for (const column of table.columns) {
-          const fqn = `${target.db}.${target.schema || 'public'}.${table.name}.${column.name}`;
+          const fqn = `${target.db}.${target.schema || "public"}.${
+            table.name
+          }.${column.name}`;
           index.add(fqn);
         }
       }
@@ -215,3 +253,5 @@ export class DBDocValidator {
     return index;
   }
 }
+
+export default DBDocValidator;
