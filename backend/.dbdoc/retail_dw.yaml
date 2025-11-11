@@ -1,1 +1,50 @@
-// Placeholder for retail_dw.yaml
+project: retail_dw
+version: "0.1"
+owners:
+  - data-eng@company.com
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: mart
+    tables:
+      - name: dim_user
+        description: Master user dimension
+        columns:
+          - name: user_id
+            type: INTEGER
+            pk: true
+            description: Surrogate key
+          - name: email
+            type: VARCHAR(320)
+            unique: true
+            not_null: true
+            description: User email (PII)
+          - name: address_street
+            type: VARCHAR(256)
+          - name: created_at
+            type: TIMESTAMP
+            default: now()
+
+sources:
+  - id: mongo_users
+    kind: mongodb
+    conn: atlas-cluster-A
+    db: shop
+    collection: users
+
+mappings:
+  - target: dw.mart.dim_user.email
+    from:
+      source_id: mongo_users
+      path: $.contact.email
+      transform: lower()
+  - target: dw.mart.dim_user.address_street
+    from:
+      source_id: mongo_users
+      path: $.address.street
+  - target: dw.mart.dim_user.user_id
+    from:
+      rule: "sequence('dim_user_seq')"
+notes:
+  - "PII: email; mask in non-prod exports"

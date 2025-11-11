@@ -1,0 +1,56 @@
+{
+  "project": "retail_dw",
+  "generated_at": "2025-11-11T18:16:05.437Z",
+  "nodes": [
+    {
+      "id": "mongo_users.$.contact.email",
+      "label": "mongo_users.$.contact.email",
+      "type": "source"
+    },
+    {
+      "id": "dw.mart.dim_user.email",
+      "label": "dw.mart.dim_user.email",
+      "type": "target"
+    },
+    {
+      "id": "mongo_users.$.address.street",
+      "label": "mongo_users.$.address.street",
+      "type": "source"
+    },
+    {
+      "id": "dw.mart.dim_user.address_street",
+      "label": "dw.mart.dim_user.address_street",
+      "type": "target"
+    },
+    {
+      "id": "unknown_source",
+      "label": "unknown_source",
+      "type": "source"
+    },
+    {
+      "id": "dw.mart.dim_user.user_id",
+      "label": "dw.mart.dim_user.user_id",
+      "type": "target"
+    }
+  ],
+  "edges": [
+    {
+      "id": "mongo_users.$.contact.email->dw.mart.dim_user.email",
+      "source": "mongo_users.$.contact.email",
+      "target": "dw.mart.dim_user.email",
+      "transform": "lower()"
+    },
+    {
+      "id": "mongo_users.$.address.street->dw.mart.dim_user.address_street",
+      "source": "mongo_users.$.address.street",
+      "target": "dw.mart.dim_user.address_street",
+      "transform": null
+    },
+    {
+      "id": "unknown_source->dw.mart.dim_user.user_id",
+      "source": "unknown_source",
+      "target": "dw.mart.dim_user.user_id",
+      "transform": null
+    }
+  ]
+}

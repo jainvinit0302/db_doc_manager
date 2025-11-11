@@ -11,6 +11,7 @@ import CreateProject from "./pages/CreateProject";
 import DataVisualization from "./pages/DataVisualization";
 import NotFound from "./pages/NotFound";
 import Visualization from "./pages/Visualization";
+import LineageGraphPage from "./pages/LineageGraphPage"; // ✅ NEW import
 
 import { AuthProvider } from "@/auth/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -61,6 +62,17 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* ✅ NEW Route for Lineage Graph */}
+            <Route
+              path="/lineage-graph"
+              element={
+                <ProtectedRoute>
+                  <LineageGraphPage />
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>
