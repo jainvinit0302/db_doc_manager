@@ -1,0 +1,16 @@
+backend
+
+npm init -y
+#should not have pakage.json
+npm install express cors body-parser js-yaml ajv
+npm install -D typescript tsx @types/express @types/node @types/cors
+npx tsc --init
+npm install -D @types/js-yaml
+
+frontend 
+npm init -y
+#should not have pakage.json
+npm install react react-dom
+npm install -D vite @vitejs/plugin-react
+npm install axios
+npm install mermaid cytoscape
