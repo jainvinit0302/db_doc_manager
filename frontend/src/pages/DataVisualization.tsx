@@ -1,3 +1,4 @@
+// src/pages/DataVisualization.tsx
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +12,6 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ArrowLeft,
   Search,
-  ZoomIn,
-  ZoomOut,
-  Move,
   Database,
   Share2,
   GitBranch,
@@ -33,22 +31,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNavigate, useLocation } from "react-router-dom";
 
-const DataVisualization = () => {
+type TableShape = { name: string; columns?: string[] };
+
+const DataVisualization: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
 
+  // Read navigation state safely
+  const nav = (location.state || {}) as any;
+  const projectName = nav.projectName || "Untitled Project";
+  const engine = nav.engine || "Unknown Engine";
+  // allow either `tables` passed or empty array
+  const initialTables: TableShape[] = Array.isArray(nav.tables)
+    ? nav.tables
+    : [];
+
+  // Local state
   const [lineage, setLineage] = useState<any | null>(null);
-  const [lineageLevel, setLineageLevel] = useState<"table" | "column">("table");
-  const [activeTab, setActiveTab] = useState("er-diagram");
+  const [lineageLevel, setLineageLevel] = useState<"table" | "column">(
+    "table"
+  );
+  const [activeTab, setActiveTab] = useState<string>("er-diagram");
   const [searchQuery, setSearchQuery] = useState("");
   const [zoomLevel, setZoomLevel] = useState(100);
-
-  const projectData = {
-    projectName: location.state?.projectName || "Untitled Project",
-    engine: location.state?.engine || "Unknown Engine",
-    tables: location.state?.tables || [],
-  };
+  const [tables] = useState<TableShape[]>(initialTables);
 
   const tabs = [
     { id: "schema", label: "Schema", icon: FileText },
@@ -57,20 +64,23 @@ const DataVisualization = () => {
     { id: "mappings", label: "Mappings", icon: Map },
   ];
 
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 200));
-  const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 50));
-  const handleLogout = () => logout();
+  const handleLogout = () => {
+    try {
+      logout();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
 
+  // Called by DbDocPanel when artifacts are generated
   const handleArtifacts = (artifacts: {
     csv?: string;
     mermaids?: any[];
     lineage?: any;
   }) => {
-    if (artifacts.lineage) {
-      setLineage(artifacts.lineage);
-    } else {
-      setLineage(null);
-    }
+    // safe guard: if lineage exists set it, else clear
+    if (artifacts && artifacts.lineage) setLineage(artifacts.lineage);
+    else setLineage(null);
   };
 
   const renderSchemaView = () => (
@@ -87,7 +97,7 @@ const DataVisualization = () => {
         </div>
       </div>
 
-      {(projectData.tables || []).length === 0 ? (
+      {(tables || []).length === 0 ? (
         <div className="h-[400px] bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
           <div className="text-center space-y-4">
             <FileText className="w-16 h-16 mx-auto text-muted-foreground" />
@@ -95,26 +105,23 @@ const DataVisualization = () => {
               <h3 className="text-lg font-medium">No Schema Data</h3>
               <p className="text-sm text-muted-foreground max-w-md">
                 Upload a DSL file and validate it to see your database schema
-                structure here.
+                structure here. Use the ER Diagram tab to generate artifacts.
               </p>
             </div>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
-          {(projectData.tables || [])
+          {(tables || [])
             .filter(
               (table) =>
                 table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (table.columns || []).some((col) =>
+                (table.columns || []).some((col: string) =>
                   col.toLowerCase().includes(searchQuery.toLowerCase())
                 )
             )
             .map((table) => (
-              <Card
-                key={table.name}
-                className="hover:shadow-md transition-shadow"
-              >
+              <Card key={table.name} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Table className="w-4 h-4" />
@@ -132,7 +139,7 @@ const DataVisualization = () => {
                           key={column}
                           className="text-sm text-muted-foreground flex items-center gap-2"
                         >
-                          <div className="w-2 h-2 bg-primary rounded-full"></div>
+                          <div className="w-2 h-2 bg-primary rounded-full" />
                           {column}
                         </div>
                       ))}
@@ -146,58 +153,57 @@ const DataVisualization = () => {
     </div>
   );
 
-  // ✅ Modified ER Diagram View with integrated LineageGraph
   const renderERDiagram = () => {
     return (
-      <div className="w-full h-full p-6">
-        <h3 className="text-xl font-semibold mb-3">ERD & Lineage</h3>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left: DSL editor */}
-          <div className="bg-card border border-border rounded-lg p-4">
-            <h4 className="text-sm font-medium mb-2">DSL Editor</h4>
-            <DbDocPanel onArtifacts={handleArtifacts} />
+      <div className="w-full h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+          {/* Left: DSL editor with DbDocPanel */}
+          <div className="bg-card border border-border rounded-lg p-4 flex flex-col">
+            <h4 className="text-sm font-medium mb-3">DSL Editor & Artifacts</h4>
+            <div className="flex-1 min-h-0">
+              {/* DbDocPanel should call onArtifacts when it generates artifacts */}
+              <DbDocPanel onArtifacts={handleArtifacts} />
+            </div>
           </div>
 
           {/* Right: Lineage Graph */}
           <div className="bg-card border border-border rounded-lg p-4 flex flex-col">
             <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium">Data Lineage Graph</h4>
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  variant={
-                    lineageLevel === "table" ? "secondary" : "outline"
-                  }
+                  variant={lineageLevel === "table" ? "secondary" : "outline"}
                   onClick={() => setLineageLevel("table")}
                 >
                   Table-level
                 </Button>
                 <Button
                   size="sm"
-                  variant={
-                    lineageLevel === "column" ? "secondary" : "outline"
-                  }
+                  variant={lineageLevel === "column" ? "secondary" : "outline"}
                   onClick={() => setLineageLevel("column")}
                 >
                   Column-level
                 </Button>
               </div>
-
-              <div className="text-sm text-muted-foreground">
-                {lineage
-                  ? `${lineage.nodes?.length || 0} nodes • ${
-                      lineage.edges?.length || 0
-                    } edges`
-                  : "No lineage loaded"}
-              </div>
             </div>
 
-            <div className="flex-1 min-h-[420px]">
+            <div className="text-sm text-muted-foreground mb-3">
+              {lineage
+                ? `${lineage.nodes?.length || 0} nodes • ${lineage.edges?.length || 0} edges`
+                : "No lineage data"}
+            </div>
+
+            <div className="flex-1 min-h-[420px] border border-border rounded-lg overflow-hidden">
               {lineage ? (
                 <LineageGraph lineage={lineage} level={lineageLevel} />
               ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  No lineage available. Generate artifacts from DSL on the left.
+                <div className="h-full flex items-center justify-center text-muted-foreground bg-muted/20">
+                  <div className="text-center space-y-2">
+                    <GitBranch className="w-12 h-12 mx-auto opacity-50" />
+                    <p className="text-sm">No lineage available</p>
+                    <p className="text-xs">Generate artifacts from DSL editor on the left</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -208,15 +214,51 @@ const DataVisualization = () => {
   };
 
   const renderLineageView = () => (
-    <div className="h-full bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <GitBranch className="w-16 h-16 mx-auto text-muted-foreground" />
-        <div>
-          <h3 className="text-lg font-medium">No Data Lineage Available</h3>
-          <p className="text-sm text-muted-foreground max-w-md">
-            Data lineage visualization will show how data flows and dependencies
-            across your database schema once DSL is processed.
-          </p>
+    <div className="w-full h-full">
+      <div className="bg-card border border-border rounded-lg p-4 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium">Data Lineage Visualization</h4>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={lineageLevel === "table" ? "secondary" : "outline"}
+              onClick={() => setLineageLevel("table")}
+            >
+              Table-level
+            </Button>
+            <Button
+              size="sm"
+              variant={lineageLevel === "column" ? "secondary" : "outline"}
+              onClick={() => setLineageLevel("column")}
+            >
+              Column-level
+            </Button>
+          </div>
+        </div>
+
+        <div className="text-sm text-muted-foreground mb-3">
+          {lineage
+            ? `${lineage.nodes?.length || 0} nodes • ${lineage.edges?.length || 0} edges`
+            : "No lineage data"}
+        </div>
+
+        <div className="flex-1 min-h-[500px] border border-border rounded-lg overflow-hidden">
+          {lineage ? (
+            <LineageGraph lineage={lineage} level={lineageLevel} />
+          ) : (
+            <div className="h-full flex items-center justify-center text-muted-foreground bg-muted/20">
+              <div className="text-center space-y-4">
+                <GitBranch className="w-16 h-16 mx-auto opacity-50" />
+                <div>
+                  <h3 className="text-lg font-medium">No Data Lineage Available</h3>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Go to the ER Diagram tab and generate artifacts from your DSL 
+                    to visualize data lineage and dependencies.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -295,6 +337,7 @@ const DataVisualization = () => {
                 <Button
                   variant="ghost"
                   className="h-10 w-10 rounded-full p-0 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                  aria-label="User menu"
                 >
                   <Avatar>
                     <AvatarFallback>VJ</AvatarFallback>
@@ -331,23 +374,15 @@ const DataVisualization = () => {
                 <Database className="w-4 h-4 text-primary" />
               </div>
               <div className="flex flex-col leading-tight">
-                <h2 className="text-sm font-semibold whitespace-nowrap">
-                  DBDocManager
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  — {projectData?.projectName || "Untitled Project"}
-                </p>
+                <h2 className="text-sm font-semibold whitespace-nowrap">DBDocManager</h2>
+                <p className="text-xs text-muted-foreground">— {projectName}</p>
               </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center text-center pointer-events-none">
-              <h1 className="text-lg font-semibold truncate max-w-[60vw]">
-                {projectData?.projectName || "Untitled Project"}
-              </h1>
+              <h1 className="text-lg font-semibold truncate max-w-[60vw]">{projectName}</h1>
               <p className="text-sm text-muted-foreground">
-                {projectData?.engine
-                  ? `${projectData.engine} Database Visualization`
-                  : "Database Visualization"}
+                {engine ? `${engine} Database Visualization` : "Database Visualization"}
               </p>
             </div>
           </div>
@@ -359,9 +394,7 @@ const DataVisualization = () => {
         {/* Sidebar */}
         <div className="w-64 border-r border-border bg-muted/30">
           <div className="p-4">
-            <h2 className="font-medium text-sm text-muted-foreground mb-4">
-              VIEWS
-            </h2>
+            <h2 className="font-medium text-sm text-muted-foreground mb-4">VIEWS</h2>
             <nav className="space-y-1">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -374,7 +407,7 @@ const DataVisualization = () => {
                   >
                     <Icon className="w-4 h-4 mr-3" />
                     {tab.label}
-                    {tab.id === "er-diagram" && activeTab === tab.id && (
+                    {activeTab === tab.id && (
                       <Badge variant="outline" className="ml-auto text-xs">
                         ACTIVE
                       </Badge>
@@ -387,7 +420,7 @@ const DataVisualization = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
@@ -396,13 +429,13 @@ const DataVisualization = () => {
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">
                   <Database className="w-3 h-3 mr-1" />
-                  {(projectData.tables || []).length} tables
+                  {(tables || []).length} tables
                 </Badge>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 p-6">{renderMainContent()}</div>
+          <div className="flex-1 p-6 overflow-auto">{renderMainContent()}</div>
         </div>
       </div>
     </div>

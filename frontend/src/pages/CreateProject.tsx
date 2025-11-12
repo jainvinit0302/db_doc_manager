@@ -132,12 +132,51 @@ const CreateProject = () => {
       sources: Math.max(Math.floor(tableMatches.length / 3), 1),
       tables: tableMatches
         .map((match) => match.replace(/^\s*/, "").replace(":", ""))
-        .slice(0, 10),
+        .slice(0, 10)
+        .map((name) => ({ name, columns: ["id", "created_at", "updated_at"] })), // small default columns
       relationships: Math.floor(
         columnMatches.filter((col) => col.includes("foreign_key")).length
       ),
       isValid: content.trim().length > 0 && !content.includes("error"),
     });
+  };
+
+  // NEW: mock artifact generator
+  const mockGenerateArtifacts = (content: string, parsed: any) => {
+    // Replace with real artifact generation (mermaid, lineage, csv) as needed.
+    // This returns a small mocked shape that DataVisualization will consume.
+    const tables = (parsed?.tables && parsed.tables.length > 0)
+      ? parsed.tables
+      : (content ? content.match(/^\s*\w+:/gm)?.map(s => s.replace(/:/, "").trim()) : []) || ["users", "orders"];
+
+    const parsedTables = tables.map((t: any, idx: number) =>
+      typeof t === "string" ? { name: t, columns: ["id", "name", "created_at"] } : t
+    );
+
+    // Mock lineage graph nodes/edges
+    const nodes = parsedTables.map((t: any, i: number) => ({ id: `t${i}`, label: t.name }));
+    const edges = parsedTables.length > 1 ? [{ from: nodes[0].id, to: nodes[1].id }] : [];
+
+    // Simple mermaid ERD string (very simple)
+    const mermaid = [
+      "erDiagram",
+      ...parsedTables.map((t: any) => `${t.name} {`),
+      // note: keep small and safe (mermaid syntax is illustrative)
+    ];
+
+    // CSV preview (string)
+    const csv = parsedTables.map((t: any) => `${t.name},${(t.columns || []).length}`).join("\n");
+
+    return {
+      csv,
+      mermaids: [{ id: "erd-1", source: `erDiagram\n${parsedTables.map((t:any)=> `${t.name} {\n  id INT\n}`).join("\n")}` }],
+      lineage: {
+        nodes,
+        edges,
+      },
+      tables: parsedTables,
+      generatedAt: new Date().toISOString(),
+    };
   };
 
   // NEW: call backend /api/validate
@@ -166,7 +205,6 @@ const CreateProject = () => {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        // server returned an HTTP error
         const msg =
           (data && data.error) ||
           (data && JSON.stringify(data)) ||
@@ -174,14 +212,7 @@ const CreateProject = () => {
         setValidationError(String(msg));
         setValidationResult(null);
       } else {
-        // successful response
         setValidationResult(data);
-
-        // one-time debug to inspect raw shape
-        // eslint-disable-next-line no-console
-        console.debug("Validation result (raw):", data);
-
-        // update parsedData validity indicator with authoritative result if available
         if (data && typeof data.valid === "boolean") {
           setParsedData((prev: any) => ({ ...(prev || {}), isValid: data.valid }));
         }
@@ -225,20 +256,21 @@ CREATE TABLE orders (
     }
   };
 
-  const handleDataVisualization = () => {
-    if (selectedEngine && dslContent) {
-      // Navigate to data visualization page with project data
-      navigate("/data-visualization", {
-        state: {
-          projectName: projectName || "Untitled Project",
-          engine:
-            engines.find((e) => e.id === selectedEngine)?.name || selectedEngine,
-          dslContent,
-          parsedData,
-        },
-      });
-    }
-  };
+  // MODIFIED: Generate artifacts when user clicks Data Visualization, then navigate with artifacts in state.
+  // inside CreateProject.tsx (replace only handleDataVisualization)
+    const handleDataVisualization = () => {
+      if (selectedEngine && dslContent) {
+        navigate("/data-visualization", {
+          state: {
+            projectName: projectName || "Untitled Project",
+            engine: engines.find((e) => e.id === selectedEngine)?.name || selectedEngine,
+            dslContent, // for DbDocPanel
+            tables: parsedData?.tables || [], // for schema view
+          },
+        });
+      }
+    };
+
 
   const handleSaveAndContinue = () => {
     // Save project logic here
@@ -272,7 +304,7 @@ CREATE TABLE orders (
             </div>
 
             <div className="flex-1 flex justify-center px-4">
-              <div className="w-full max-w-xl"> 
+              <div className="w-full max-w-xl">
                 <Input
                   placeholder="Enter project name..."
                   value={projectName}
@@ -323,7 +355,6 @@ CREATE TABLE orders (
           </div>
         </div>
       </header>
-
 
       {/* Three-Panel Layout */}
       <main className="container px-4 py-6">
@@ -505,9 +536,9 @@ CREATE TABLE orders (
                       <div>
                         <p className="text-sm font-medium mb-2">Tables:</p>
                         <div className="flex flex-wrap gap-1">
-                          {parsedData.tables.map((table: string) => (
-                            <Badge key={table} variant="outline" className="text-xs">
-                              {table}
+                          {parsedData.tables.map((table: any) => (
+                            <Badge key={table.name} variant="outline" className="text-xs">
+                              {table.name}
                             </Badge>
                           ))}
                         </div>

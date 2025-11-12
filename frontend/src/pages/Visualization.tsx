@@ -1,388 +1,412 @@
-// src/pages/visualization.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import DbDocPanel from "@/components/DbDocPanel";
+import LineageGraph from "@/components/LineageGraph";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/auth/AuthProvider";
 import {
-  Database,
-  Layers,
-  Share2,
-  Box,
+  ArrowLeft,
+  Search,
   ZoomIn,
   ZoomOut,
   Move,
-  RotateCcw,
+  Database,
+  Share2,
+  GitBranch,
+  Map,
+  FileText,
+  Table,
+  LogOut,
+  User,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate, useLocation } from "react-router-dom";
 
-type TabKey = "schema" | "erd" | "lineage" | "mapping";
-
-const ZOOM_STEP = 10;
-const MIN_ZOOM = 50;
-const MAX_ZOOM = 200;
-const DEFAULT_ZOOM = 100;
-const STORAGE_PREFIX = "visualization.tab.";
-
-const tabList: { key: TabKey; label: string; Icon?: React.ComponentType<any> }[] = [
-  { key: "schema", label: "Schema", Icon: Database },
-  { key: "erd", label: "ERD", Icon: Layers },
-  { key: "lineage", label: "Lineage graph", Icon: Share2 },
-  { key: "mapping", label: "Mapping", Icon: Box },
-];
-
-type ViewState = {
-  zoom: number;
-  offset: { x: number; y: number };
-  isPanMode: boolean;
-};
-
-const defaultState = (): ViewState => ({
-  zoom: DEFAULT_ZOOM,
-  offset: { x: 0, y: 0 },
-  isPanMode: false,
-});
-
-const loadState = (tab: TabKey): ViewState => {
-  try {
-    const raw = sessionStorage.getItem(`${STORAGE_PREFIX}${tab}`);
-    return raw ? JSON.parse(raw) : defaultState();
-  } catch {
-    return defaultState();
-  }
-};
-
-const saveState = (tab: TabKey, s: ViewState) => {
-  try {
-    sessionStorage.setItem(`${STORAGE_PREFIX}${tab}`, JSON.stringify(s));
-  } catch {
-    /* ignore */
-  }
-};
-
-const Visualization: React.FC = () => {
+const DataVisualization = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabKey>("schema");
-  const [search, setSearch] = useState("");
+  const location = useLocation();
+  const { logout } = useAuth();
 
-  // per-tab states (ERD and Lineage will use these; Schema & Mapping will ignore)
-  const [viewStates, setViewStates] = useState<Record<TabKey, ViewState>>(() => {
-    return {
-      schema: defaultState(),
-      erd: loadState("erd"),
-      lineage: loadState("lineage"),
-      mapping: defaultState(),
-    };
-  });
+  const [lineage, setLineage] = useState<any | null>(null);
+  const [lineageLevel, setLineageLevel] = useState<"table" | "column">("table");
+  const [activeTab, setActiveTab] = useState("er-diagram");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [zoomLevel, setZoomLevel] = useState(100);
 
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const lastMouse = useRef<{ x: number; y: number } | null>(null);
-  const isDragging = useRef(false);
-
-  // helper to update only active tab's state
-  const setActiveViewState = useCallback(
-    (updater: (s: ViewState) => ViewState) => {
-      setViewStates((prev) => {
-        const next = { ...prev, [activeTab]: updater(prev[activeTab]) };
-        // persist only erd/lineage
-        if (activeTab === "erd" || activeTab === "lineage") saveState(activeTab, next[activeTab]);
-        return next;
-      });
-    },
-    [activeTab]
-  );
-
-  const zoomIn = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
-    setActiveViewState((s) => ({ ...s, zoom: Math.min(s.zoom + ZOOM_STEP, MAX_ZOOM) }));
-  }, [activeTab, setActiveViewState]);
-
-  const zoomOut = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
-    setActiveViewState((s) => ({ ...s, zoom: Math.max(s.zoom - ZOOM_STEP, MIN_ZOOM) }));
-  }, [activeTab, setActiveViewState]);
-
-  const resetView = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
-    setActiveViewState(() => defaultState());
-  }, [activeTab, setActiveViewState]);
-
-  const togglePanMode = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
-    setActiveViewState((s) => ({ ...s, isPanMode: !s.isPanMode }));
-  }, [activeTab, setActiveViewState]);
-
-  // Wheel-to-zoom only for erd/lineage and only when ctrl/meta is pressed
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      // only zoom when ctrl/cmd pressed and active tab supports controls
-      if (!(activeTab === "erd" || activeTab === "lineage")) return;
-      if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
-      if (e.deltaY > 0) zoomOut();
-      else zoomIn();
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomIn, zoomOut, activeTab]);
-
-  // panning logic - only active when current tab's isPanMode === true
-  const onMouseDown = (e: React.MouseEvent) => {
-    // only for erd and lineage when pan mode turned on
-    if (!(activeTab === "erd" || activeTab === "lineage")) return;
-    const current = viewStates[activeTab];
-    if (!current.isPanMode) return;
-
-    isDragging.current = true;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
-
-    const target = e.currentTarget as HTMLElement;
-    target.style.userSelect = "none";
+  const projectData = {
+    projectName: location.state?.projectName || "Untitled Project",
+    engine: location.state?.engine || "Unknown Engine",
+    tables: location.state?.tables || [],
   };
 
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !lastMouse.current) return;
-    // only modify state for erd/lineage
-    if (!(activeTab === "erd" || activeTab === "lineage")) return;
-    const dx = e.clientX - lastMouse.current.x;
-    const dy = e.clientY - lastMouse.current.y;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
+  const tabs = [
+    { id: "schema", label: "Schema", icon: FileText },
+    { id: "er-diagram", label: "ER Diagram", icon: Share2 },
+    { id: "lineage", label: "Lineage", icon: GitBranch },
+    { id: "mappings", label: "Mappings", icon: Map },
+  ];
 
-    setActiveViewState((s) => ({ ...s, offset: { x: s.offset.x + dx, y: s.offset.y + dy } }));
-  };
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 200));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 50));
+  const handleLogout = () => logout();
 
-  const onMouseUp = () => {
-    const el = canvasRef.current as HTMLElement | null;
-    if (isDragging.current && el) el.style.userSelect = "";
-    isDragging.current = false;
-    lastMouse.current = null;
-  };
-
-  // keyboard shortcuts: + / - / 0 for zoom, 1..4 for tabs
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "+" || e.key === "=") {
-        // apply only when active tab supports zoom
-        if (activeTab === "erd" || activeTab === "lineage") zoomIn();
-      } else if (e.key === "-") {
-        if (activeTab === "erd" || activeTab === "lineage") zoomOut();
-      } else if (e.key === "0") {
-        if (activeTab === "erd" || activeTab === "lineage") resetView();
-      } else if (["1", "2", "3", "4"].includes(e.key)) {
-        const idx = Number(e.key) - 1;
-        setActiveTab(tabList[Math.min(idx, tabList.length - 1)].key);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeTab, zoomIn, zoomOut, resetView]);
-
-  // Helper to decide if we should display in-canvas controls (only ERD & Lineage)
-  const shouldShowControls = useMemo(() => activeTab === "erd" || activeTab === "lineage", [activeTab]);
-
-  // Renderers
-  const renderSchema = () => (
-    <div className="w-full h-full p-6">
-      <h3 className="text-xl font-semibold mb-3">Schema</h3>
-      <p className="text-sm text-muted-foreground mb-4">Table/column structure (full-canvas, no zoom/pan).</p>
-      <div className="bg-card border border-border rounded-lg h-[340px] p-4 overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-muted-foreground">
-            <tr>
-              <th className="pb-2">Table</th>
-              <th className="pb-2">Columns</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-t"><td className="py-2">users</td><td className="py-2">id, name, email</td></tr>
-            <tr className="border-t"><td className="py-2">orders</td><td className="py-2">id, user_id, amount</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const renderERD = () => {
-    const s = viewStates.erd;
-    return (
-      <div className="w-full h-full p-6">
-        <h3 className="text-xl font-semibold mb-3">ERD</h3>
-        <p className="text-sm text-muted-foreground mb-4">Entity-relationship diagram (supports zoom & pan).</p>
-        <div className="bg-card border border-border rounded-lg h-[340px] p-4 overflow-hidden">
-          <div
-            style={{
-              transform: `translate(${s.offset.x}px, ${s.offset.y}px) scale(${s.zoom / 100})`,
-              transformOrigin: "0 0",
-              width: "100%",
-              height: "100%",
-            }}
-            className="flex items-center justify-center text-muted-foreground"
-          >
-            [ERD Canvas Placeholder — integrate renderer here]
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderLineage = () => {
-    const s = viewStates.lineage;
-    return (
-      <div className="w-full h-full p-6">
-        <h3 className="text-xl font-semibold mb-3">Lineage Graph</h3>
-        <p className="text-sm text-muted-foreground mb-4">Data lineage (supports zoom & pan).</p>
-        <div className="bg-card border border-border rounded-lg h-[340px] p-4 overflow-hidden">
-          <div
-            style={{
-              transform: `translate(${s.offset.x}px, ${s.offset.y}px) scale(${s.zoom / 100})`,
-              transformOrigin: "0 0",
-              width: "100%",
-              height: "100%",
-            }}
-            className="flex items-center justify-center text-muted-foreground"
-          >
-            [Lineage Graph Placeholder — integrate renderer here]
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderMapping = () => (
-    <div className="w-full h-full p-6">
-      <h3 className="text-xl font-semibold mb-3">Mappings</h3>
-      <p className="text-sm text-muted-foreground mb-4">Full-canvas view (no zoom/pan controls).</p>
-      <div className="bg-card border border-border rounded-lg h-[340px] p-4 overflow-auto text-muted-foreground">
-        Mapping editor placeholder.
-      </div>
-    </div>
-  );
-
-  const renderActive = () => {
-    switch (activeTab) {
-      case "schema":
-        return renderSchema();
-      case "erd":
-        return renderERD();
-      case "lineage":
-        return renderLineage();
-      case "mapping":
-        return renderMapping();
-      default:
-        return null;
+  const handleArtifacts = (artifacts: {
+    csv?: string;
+    mermaids?: any[];
+    lineage?: any;
+  }) => {
+    if (artifacts.lineage) {
+      setLineage(artifacts.lineage);
+    } else {
+      setLineage(null);
     }
   };
 
-  // convenience current view state for ERD/Lineage
-  const currentState = viewStates[activeTab];
+  const renderSchemaView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tables, columns..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {(projectData.tables || []).length === 0 ? (
+        <div className="h-[400px] bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <FileText className="w-16 h-16 mx-auto text-muted-foreground" />
+            <div>
+              <h3 className="text-lg font-medium">No Schema Data</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Upload a DSL file and validate it to see your database schema
+                structure here.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+          {(projectData.tables || [])
+            .filter(
+              (table) =>
+                table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (table.columns || []).some((col) =>
+                  col.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+            )
+            .map((table) => (
+              <Card
+                key={table.name}
+                className="hover:shadow-md transition-shadow"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Table className="w-4 h-4" />
+                    {table.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {(table.columns || []).length} columns
+                    </Badge>
+                    <div className="space-y-1">
+                      {(table.columns || []).map((column) => (
+                        <div
+                          key={column}
+                          className="text-sm text-muted-foreground flex items-center gap-2"
+                        >
+                          <div className="w-2 h-2 bg-primary rounded-full"></div>
+                          {column}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // ✅ Modified ER Diagram View with integrated LineageGraph
+  const renderERDiagram = () => {
+    return (
+      <div className="w-full h-full p-6">
+        <h3 className="text-xl font-semibold mb-3">ERD & Lineage</h3>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left: DSL editor */}
+          <div className="bg-card border border-border rounded-lg p-4">
+            <h4 className="text-sm font-medium mb-2">DSL Editor</h4>
+            <DbDocPanel onArtifacts={handleArtifacts} />
+          </div>
+
+          {/* Right: Lineage Graph */}
+          <div className="bg-card border border-border rounded-lg p-4 flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={
+                    lineageLevel === "table" ? "secondary" : "outline"
+                  }
+                  onClick={() => setLineageLevel("table")}
+                >
+                  Table-level
+                </Button>
+                <Button
+                  size="sm"
+                  variant={
+                    lineageLevel === "column" ? "secondary" : "outline"
+                  }
+                  onClick={() => setLineageLevel("column")}
+                >
+                  Column-level
+                </Button>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                {lineage
+                  ? `${lineage.nodes?.length || 0} nodes • ${
+                      lineage.edges?.length || 0
+                    } edges`
+                  : "No lineage loaded"}
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-[420px]">
+              {lineage ? (
+                <LineageGraph lineage={lineage} level={lineageLevel} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  No lineage available. Generate artifacts from DSL on the left.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLineageView = () => (
+    <div className="h-full bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <GitBranch className="w-16 h-16 mx-auto text-muted-foreground" />
+        <div>
+          <h3 className="text-lg font-medium">No Data Lineage Available</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Data lineage visualization will show how data flows and dependencies
+            across your database schema once DSL is processed.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderMappingsView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search mappings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Button variant="outline" size="sm">
+          Sort by Table
+        </Button>
+      </div>
+
+      <div className="h-[400px] bg-muted/20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Map className="w-16 h-16 mx-auto text-muted-foreground" />
+          <div>
+            <h3 className="text-lg font-medium">No Mappings Available</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Table relationships and column mappings will appear here once your
+              DSL is processed and relationships are identified.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderMainContent = () => {
+    switch (activeTab) {
+      case "schema":
+        return renderSchemaView();
+      case "er-diagram":
+        return renderERDiagram();
+      case "lineage":
+        return renderLineageView();
+      case "mappings":
+        return renderMappingsView();
+      default:
+        return renderERDiagram();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Topbar */}
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4">
-            {/* LEFT: Back button + Branding */}
-            <div className="flex items-center gap-4">
+        <div className="relative h-16 flex items-center">
+          {/* Back Button */}
+          <div className="absolute left-10 top-1/2 -translate-y-1/2 z-30">
             <Button
-                variant="ghost"
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/create-project")}
+              className="flex items-center gap-2 px-3 transition-colors hover:text-primary hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Back to project"
             >
-                ← Back
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back to Project</span>
             </Button>
+          </div>
 
-            <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          {/* User Menu */}
+          <div className="absolute right-10 top-1/2 -translate-y-1/2 z-30">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="h-10 w-10 rounded-full p-0 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <Avatar>
+                    <AvatarFallback>VJ</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Vinit Jain</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      vinit.jain@example.com
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Branding */}
+          <div className="container flex items-center justify-between w-full pl-[160px] pr-[160px]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Database className="w-4 h-4 text-primary" />
-                </div>
-                <div className="flex flex-col leading-tight">
-                <h1 className="text-lg font-semibold flex items-center gap-1">
-                    DBDocManager <span className="text-muted-foreground">— Untitled Project</span>
-                </h1>
-                </div>
-            </div>
+              </div>
+              <div className="flex flex-col leading-tight">
+                <h2 className="text-sm font-semibold whitespace-nowrap">
+                  DBDocManager
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  — {projectData?.projectName || "Untitled Project"}
+                </p>
+              </div>
             </div>
 
-            {/* RIGHT: Search bar */}
-            <div className="flex items-center gap-4 max-w-md w-full">
-            <div className="relative flex-1">
-                <Input
-                type="search"
-                placeholder="Search tables, fields..."
-                className="pl-3"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Search"
-                />
+            <div className="flex-1 flex flex-col items-center justify-center text-center pointer-events-none">
+              <h1 className="text-lg font-semibold truncate max-w-[60vw]">
+                {projectData?.projectName || "Untitled Project"}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {projectData?.engine
+                  ? `${projectData.engine} Database Visualization`
+                  : "Database Visualization"}
+              </p>
             </div>
-            </div>
+          </div>
         </div>
-        </header>
+      </header>
 
-      <main className="container px-4 py-6">
-        {/* tabs */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3" role="tablist">
-            {tabList.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                role="tab"
-                aria-selected={activeTab === t.key}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md border ${
-                  activeTab === t.key
-                    ? "bg-primary/10 border-primary text-primary font-medium"
-                    : "bg-transparent border-border text-muted-foreground hover:bg-muted/5"
-                }`}
-              >
-                {t.Icon ? <t.Icon className="w-4 h-4" /> : null}
-                <span>{t.label}</span>
-              </button>
-            ))}
+      {/* Main Layout */}
+      <div className="flex h-[calc(100vh-4rem)]">
+        {/* Sidebar */}
+        <div className="w-64 border-r border-border bg-muted/30">
+          <div className="p-4">
+            <h2 className="font-medium text-sm text-muted-foreground mb-4">
+              VIEWS
+            </h2>
+            <nav className="space-y-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <Button
+                    key={tab.id}
+                    variant={activeTab === tab.id ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <Icon className="w-4 h-4 mr-3" />
+                    {tab.label}
+                    {tab.id === "er-diagram" && activeTab === tab.id && (
+                      <Badge variant="outline" className="ml-auto text-xs">
+                        ACTIVE
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
+            </nav>
           </div>
         </div>
 
-        {/* Canvas wrapper */}
-        <section
-          ref={canvasRef}
-          className="relative bg-card border border-border rounded-lg overflow-hidden select-none"
-          style={{ minHeight: 420 }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
-        >
-          {/* In-canvas controls — only for ERD & Lineage */}
-          {shouldShowControls && (
-            <div className="absolute top-3 right-3 z-20">
-              <div className="rounded-md bg-background border border-border px-2 py-1 flex items-center gap-2 shadow-sm">
-                {/* We intentionally remove +/- UI per your request */}
-                <div className="text-sm font-medium px-3">{currentState.zoom}%</div>
-
-                <button
-                  onClick={togglePanMode}
-                  aria-pressed={currentState.isPanMode}
-                  title="Toggle hand / pan mode"
-                  className={`p-2 rounded ${currentState.isPanMode ? "bg-primary/10" : "hover:bg-muted/5"}`}
-                >
-                  <Move className="w-4 h-4" />
-                </button>
-
-                <button onClick={resetView} title="Reset zoom & pan" className="p-2 rounded hover:bg-muted/5">
-                  <RotateCcw className="w-4 h-4 text-muted-foreground" />
-                </button>
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          <div className="p-6 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">
+                {tabs.find((tab) => tab.id === activeTab)?.label}
+              </h2>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  <Database className="w-3 h-3 mr-1" />
+                  {(projectData.tables || []).length} tables
+                </Badge>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Render the active view. For ERD/Lineage we already apply transform inside renderer function. */}
-          <div style={{ width: "100%", height: "100%" }}>{renderActive()}</div>
-        </section>
-      </main>
+          <div className="flex-1 p-6">{renderMainContent()}</div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Visualization;
+export default DataVisualization;
