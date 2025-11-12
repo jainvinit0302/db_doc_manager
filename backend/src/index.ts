@@ -1,15 +1,48 @@
+// ============================================
+// backend/src/index.ts
+// ============================================
 import express from "express";
 import cors from "cors";
-import bodyParser from "body-parser";
-import dbdocRouter from "./routes/dbdoc.route.js";
+import { router as dbdocRouter } from "./routes/dbdoc.route.js";
+import fs from "fs";
 
 const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Ensure logs directory exists
+if (!fs.existsSync("logs")) fs.mkdirSync("logs");
+
+// Middlewares
 app.use(cors());
-app.use(bodyParser.text({ type: "text/plain" }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.text({ type: ["text/*", "application/x-yaml"], limit: "10mb" }));
 
-app.use("/api", dbdocRouter);
+// Health check
+app.get("/api/health", (_, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-app.get("/", (_, res) => res.send("DBDocManager Backend Running ✅"));
+// Main DBDoc routes
+app.use("/api/dbdoc", dbdocRouter);
 
-const PORT = 5000;
-app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+// Global error handler
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("Unhandled error:", err);
+    res.status(500).json({
+      success: false,
+      errors: [err.message || "Internal Server Error"],
+    });
+  }
+);
+
+app.listen(PORT, () => {
+  console.log(`🚀 DBDocManager backend running at http://localhost:${PORT}`);
+  console.log(`📊 API endpoint: http://localhost:${PORT}/api`);
+  console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
+});

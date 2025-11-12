@@ -1,83 +1,91 @@
+
+// ============================================
+// frontend/src/components/ConversionPanel.jsx - CORRECTED
+// ============================================
 import React from "react";
 
-/*
-  Shows conversion outputs:
-  - SQL DDL (simple generator)
-  - Mongo JSON sample
-  - Validation errors / messages
-*/
+export default function ConversionPanel({ processedData }) {
+  if (!processedData) {
+    return (
+      <div style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>
+        <p>Process YAML to view documentation</p>
+      </div>
+    );
+  }
 
-export default function ConversionPanel({ parsed, normalized, error, showFull = false }) {
-  const sql = generateDDL(normalized);
-  const mongo = generateMongoSample(normalized);
+  const sql = processedData.sql || "-- No SQL generated --";
+  const documentation = processedData.documentation || {};
 
   return (
     <div>
-      {error && <div style={{ color: "#fca5a5", marginBottom: 8 }}>{error}</div>}
+      <div style={{ marginBottom: "16px" }}>
+        <h3 style={{ marginTop: 0 }}>Project: {processedData.project || "Unknown"}</h3>
+        {processedData.owners && processedData.owners.length > 0 && (
+          <p style={{ color: "var(--muted)", fontSize: "14px" }}>
+            Owners: {processedData.owners.join(", ")}
+          </p>
+        )}
+      </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: "300px" }}>
           <strong>SQL DDL</strong>
           <pre className="result-pre">{sql}</pre>
         </div>
+        
         <div style={{ flex: 1, minWidth: "300px" }}>
-          <strong>Mongo Sample</strong>
-          <pre className="result-pre">{mongo}</pre>
+          <strong>Documentation Summary</strong>
+          <pre className="result-pre">
+            {JSON.stringify(documentation.summary || documentation, null, 2)}
+          </pre>
         </div>
       </div>
 
-      {showFull && (
-        <div style={{ marginTop: 10 }}>
-          <strong>Validation / Parsed</strong>
-          <pre className="result-pre">
-            {parsed ? JSON.stringify(parsed, null, 2) : "No parsed output yet"}
-          </pre>
+      {processedData.targets && (
+        <div style={{ marginTop: "16px" }}>
+          <strong>Targets</strong>
+          <div style={{ marginTop: "8px" }}>
+            {processedData.targets.map((target, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: "var(--card)",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  marginBottom: "8px",
+                  border: "1px solid var(--border)"
+                }}
+              >
+                <h4 style={{ margin: "0 0 8px 0" }}>
+                  {target.db}.{target.schema} ({target.engine})
+                </h4>
+                {target.tables && target.tables.map((table, tidx) => (
+                  <div key={tidx} style={{ marginLeft: "12px", marginTop: "8px" }}>
+                    <strong style={{ color: "#10b981" }}>{table.name}</strong>
+                    {table.description && (
+                      <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0" }}>
+                        {table.description}
+                      </p>
+                    )}
+                    {table.columns && (
+                      <div style={{ fontSize: "12px", marginTop: "4px" }}>
+                        {table.columns.map((col, cidx) => (
+                          <div key={cidx} style={{ display: "flex", gap: 8, padding: "2px 0" }}>
+                            <span style={{ color: "#fbbf24" }}>{col.name}</span>
+                            <span style={{ color: "#60a5fa" }}>{col.type}</span>
+                            {col.pk && <span style={{ color: "#ef4444" }}>PK</span>}
+                            {col.unique && <span style={{ color: "#a78bfa" }}>UQ</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
-}
-
-/* -----------------------------
- * SQL DDL generator
- * ----------------------------- */
-function generateDDL(normalized) {
-  if (!normalized || !normalized.targets) return "-- No normalized targets yet --";
-
-  return normalized.targets
-    .map((t) => {
-      const cols = (t.columns || [])
-        .map((c) => `  ${c.name} ${c.type || "TEXT"}${c.pk ? " PRIMARY KEY" : ""}`)
-        .join(",\n");
-      const tableName = t.fullName || [t.db, t.schema, t.name].filter(Boolean).join(".");
-      return `CREATE TABLE ${tableName} (\n${cols}\n);\n`;
-    })
-    .join("\n");
-}
-
-/* -----------------------------
- * Mongo sample generator
- * ----------------------------- */
-function generateMongoSample(normalized) {
-  if (!normalized || !normalized.mappings) return "// No mapping sample";
-
-  const buckets = {};
-
-  // group by source_id
-  normalized.mappings.forEach((m) => {
-    if (!m || !m.source_id) return;
-
-    const s = m.source_id;
-    buckets[s] = buckets[s] || {};
-
-    // derive key name from new fields
-    const key =
-      m.target_column ||
-      (m.target && m.target.split(".").slice(-1)[0]) ||
-      "unknown_column";
-
-    buckets[s][key] = m.source_path || "<no path>";
-  });
-
-  return JSON.stringify(buckets, null, 2);
 }

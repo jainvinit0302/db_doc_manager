@@ -2,13 +2,30 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "project": { "type": "string" },
+    "project": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" }
+          },
+          "required": ["name"]
+        }
+      ]
+    },
+    "owners": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "targets": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "properties": {
           "db": { "type": "string" },
+          "engine": { "type": "string" },
           "schema": { "type": "string" },
           "tables": {
             "type": "array",
@@ -16,27 +33,69 @@
               "type": "object",
               "properties": {
                 "name": { "type": "string" },
+                "description": { "type": "string" },
                 "columns": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
                       "name": { "type": "string" },
-                      "type": { "type": "string" }
+                      "type": { "type": "string" },
+                      "pk": { "type": "boolean" },
+                      "unique": { "type": "boolean" },
+                      "not_null": { "type": "boolean" },
+                      "default": { "type": ["string", "number", "boolean", "null"] },
+                      "description": { "type": "string" }
                     },
                     "required": ["name", "type"]
                   }
                 }
               },
-              "required": ["name"]
+              "required": ["name", "columns"]
             }
           }
         },
-        "required": ["db", "schema", "tables"]
+        "required": ["db", "engine", "schema", "tables"]
       }
     },
-    "sources": { "type": "array" },
-    "mappings": { "type": "array" }
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "conn": { "type": "string" },
+          "db": { "type": "string" },
+          "collection": { "type": "string" }
+        },
+        "required": ["id", "kind"]
+      }
+    },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "from": {
+            "type": "object",
+            "properties": {
+              "source_id": { "type": "string" },
+              "path": { "type": "string" },
+              "transform": { "type": "string" },
+              "rule": { "type": "string" },
+              "fields": { "type": "object" }
+            }
+          }
+        },
+        "required": ["target", "from"]
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
   },
   "required": ["project", "targets"]
 }
