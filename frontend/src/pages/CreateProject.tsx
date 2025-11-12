@@ -96,8 +96,7 @@ const CreateProject = () => {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setDslContent(content);
-      // Mock parsing - in real app, this would be actual YAML/DSL parsing
-      mockParseDSL(content);
+      // Don't parse immediately - wait for validation
     };
     reader.readAsText(file);
   };
@@ -122,23 +121,157 @@ const CreateProject = () => {
   };
 
   const mockParseDSL = (content: string) => {
-    // Mock parsed data - replace with actual DSL parsing logic
-    const lines = content.split("\n");
-    const tableMatches = content.match(/^\s*\w+:/gm) || [];
-    const columnMatches = content.match(/^\s*-\s+\w+:/gm) || [];
+    // Parse DSL content more accurately based on YAML structure
+    if (!content.trim()) {
+      setParsedData({
+        totalTables: 0,
+        sources: 0,
+        tables: [],
+        relationships: 0,
+        isValid: false,
+      });
+      return;
+    }
 
-    setParsedData({
-      totalTables: Math.max(tableMatches.length, 1),
-      sources: Math.max(Math.floor(tableMatches.length / 3), 1),
-      tables: tableMatches
-        .map((match) => match.replace(/^\s*/, "").replace(":", ""))
-        .slice(0, 10)
-        .map((name) => ({ name, columns: ["id", "created_at", "updated_at"] })), // small default columns
-      relationships: Math.floor(
-        columnMatches.filter((col) => col.includes("foreign_key")).length
-      ),
-      isValid: content.trim().length > 0 && !content.includes("error"),
-    });
+    try {
+      // Split content into lines for analysis
+      const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      const tables = new Set<string>();
+      const sources = new Set<string>();
+      const mappings = new Set<string>();
+      let totalColumns = 0;
+      let relationships = 0;
+      
+      let currentSection = '';
+      let inTablesList = false;
+      let inSourcesList = false;
+      let inMappingsList = false;
+      let currentTable = '';
+      let currentTableColumns = 0;
+      
+      lines.forEach((line, index) => {
+        const lowerLine = line.toLowerCase();
+        const trimmedLine = line.trim();
+        
+        // Detect main sections in YAML
+        if (trimmedLine === 'targets:') {
+          currentSection = 'targets';
+          inTablesList = false;
+          return;
+        } else if (trimmedLine === 'sources:') {
+          currentSection = 'sources';
+          inSourcesList = true;
+          return;
+        } else if (trimmedLine === 'mappings:') {
+          currentSection = 'mappings';
+          inMappingsList = true;
+          return;
+        } else if (trimmedLine === 'notes:') {
+          currentSection = 'notes';
+          return;
+        }
+        
+        // Detect sub-sections
+        if (currentSection === 'targets') {
+          if (trimmedLine === 'tables:' || lowerLine.includes('tables:')) {
+            inTablesList = true;
+            return;
+          }
+          
+          if (inTablesList) {
+            // Look for table name definitions
+            if (trimmedLine.startsWith('- name:') || trimmedLine.match(/^-\s*name:\s*/)) {
+              const nameMatch = trimmedLine.match(/^-?\s*name:\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+              if (nameMatch) {
+                currentTable = nameMatch[1];
+                tables.add(currentTable);
+                currentTableColumns = 0;
+              }
+            }
+            
+            // Count columns for the current table
+            if (trimmedLine.includes('{ name:') || (trimmedLine.includes('name:') && trimmedLine.includes('type:'))) {
+              currentTableColumns++;
+              totalColumns++;
+            } else if (trimmedLine.startsWith('- { name:')) {
+              currentTableColumns++;
+              totalColumns++;
+            }
+          }
+        } else if (currentSection === 'sources' && inSourcesList) {
+          // Look for source definitions
+          if (trimmedLine.startsWith('- id:') || trimmedLine.match(/^-\s*id:\s*/)) {
+            const idMatch = trimmedLine.match(/^-?\s*id:\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+            if (idMatch) {
+              sources.add(idMatch[1]);
+            }
+          }
+        } else if (currentSection === 'mappings' && inMappingsList) {
+          // Look for mapping definitions
+          if (trimmedLine.startsWith('- target:')) {
+            const targetMatch = trimmedLine.match(/^-?\s*target:\s*(.+)/);
+            if (targetMatch) {
+              mappings.add(targetMatch[1]);
+              relationships++;
+            }
+          }
+        }
+        
+        // Alternative parsing patterns for different formats
+        // YAML-style table definitions
+        if (trimmedLine.match(/^[a-zA-Z_][a-zA-Z0-9_]*:\s*$/) && 
+            currentSection !== 'sources' && currentSection !== 'mappings' && 
+            !['project', 'owners', 'targets', 'sources', 'mappings', 'notes', 'tables', 'columns'].includes(trimmedLine.replace(':', ''))) {
+          const tableName = trimmedLine.replace(':', '');
+          tables.add(tableName);
+        }
+        
+        // Look for column definitions in various formats
+        if (trimmedLine.includes('name:') && trimmedLine.includes('type:') && !trimmedLine.includes('target:')) {
+          totalColumns++;
+        }
+        
+        // Count direct mapping relationships
+        if (trimmedLine.includes('target:') && (trimmedLine.includes('from:') || index < lines.length - 1)) {
+          relationships++;
+        }
+      });
+      
+      // If no sources detected from structure, try to find them in content
+      if (sources.size === 0) {
+        lines.forEach(line => {
+          const sourceMatch = line.match(/source_id:\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+          if (sourceMatch) {
+            sources.add(sourceMatch[1]);
+          }
+        });
+      }
+      
+      // Convert Set to Array with additional metadata
+      const tableArray = Array.from(tables).map(name => ({
+        name,
+        columns: totalColumns > 0 && tables.size > 0 ? Math.ceil(totalColumns / tables.size) : 4 // Default to 4 based on your example
+      }));
+
+      setParsedData({
+        totalTables: tables.size,
+        sources: sources.size,
+        tables: tableArray,
+        relationships: Math.max(relationships, mappings.size),
+        isValid: tables.size > 0 || sources.size > 0,
+      });
+      
+    } catch (error) {
+      console.error("Error parsing DSL:", error);
+      setParsedData({
+        totalTables: 0,
+        sources: 0,
+        tables: [],
+        relationships: 0,
+        isValid: false,
+      });
+    }
   };
 
   // NEW: mock artifact generator
@@ -213,8 +346,19 @@ const CreateProject = () => {
         setValidationResult(null);
       } else {
         setValidationResult(data);
+        // Update validity based on server validation result
         if (data && typeof data.valid === "boolean") {
-          setParsedData((prev: any) => ({ ...(prev || {}), isValid: data.valid }));
+          setParsedData((prev: any) => ({ 
+            ...(prev || {}), 
+            isValid: data.valid 
+          }));
+          // Only re-parse if validation was successful
+          if (data.valid) {
+            mockParseDSL(dslContent);
+          }
+        } else {
+          // If no clear validity from server, re-parse to get local analysis
+          mockParseDSL(dslContent);
         }
       }
     } catch (err: any) {
@@ -259,11 +403,11 @@ CREATE TABLE orders (
   // MODIFIED: Generate artifacts when user clicks Data Visualization, then navigate with artifacts in state.
   // inside CreateProject.tsx (replace only handleDataVisualization)
     const handleDataVisualization = () => {
-      if (selectedEngine && dslContent) {
+      if (dslContent) {
         navigate("/data-visualization", {
           state: {
             projectName: projectName || "Untitled Project",
-            engine: engines.find((e) => e.id === selectedEngine)?.name || selectedEngine,
+            engine: "Generic Database",
             dslContent, // for DbDocPanel
             tables: parsedData?.tables || [], // for schema view
           },
@@ -276,7 +420,6 @@ CREATE TABLE orders (
     // Save project logic here
     console.log("Saving project:", {
       name: projectName,
-      engine: selectedEngine,
       dsl: dslContent,
       sql: generatedSQL,
     });
@@ -429,70 +572,38 @@ CREATE TABLE orders (
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Database className="w-5 h-5" />
-                  Target Engine
+                  Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Engine Selection */}
-                <div className="grid grid-cols-2 gap-2">
-                  {engines.map((engine) => (
-                    <Button
-                      key={engine.id}
-                      variant={selectedEngine === engine.id ? "default" : "outline"}
-                      className="h-auto p-3 flex flex-col items-center gap-1"
-                      onClick={() => setSelectedEngine(engine.id)}
-                    >
-                      <span className="text-lg">{engine.icon}</span>
-                      <span className="text-xs">{engine.name}</span>
-                    </Button>
-                  ))}
-                </div>
+              <CardContent className="space-y-3">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={handleValidateDSL}
+                  disabled={!dslContent || validating}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  {validating ? "Validating…" : "Validate DSL"}
+                </Button>
 
-                <Separator />
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={handleDataVisualization}
+                  disabled={!dslContent}
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Data Visualization
+                </Button>
 
-                {/* Actions */}
-                <div className="space-y-3">
-                  <h3 className="font-medium">Actions</h3>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={handleValidateDSL}
-                    disabled={!dslContent || validating}
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    {validating ? "Validating…" : "Validate DSL"}
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={handleGenerateSQL}
-                    disabled={!selectedEngine || !dslContent}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Generate SQL
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={handleDataVisualization}
-                    disabled={!selectedEngine || !dslContent}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Data Visualization
-                  </Button>
-
-                  <Button
-                    className="w-full justify-start"
-                    onClick={handleSaveAndContinue}
-                    disabled={!projectName || !selectedEngine || !dslContent}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save & Continue
-                  </Button>
-                </div>
+                <Button
+                  className="w-full justify-start"
+                  onClick={handleSaveAndContinue}
+                  disabled={!projectName || !dslContent}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save & Export
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -504,8 +615,8 @@ CREATE TABLE orders (
                 <CardTitle>Preview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Parsed YAML Summary */}
-                {parsedData && (
+                {/* Parsed YAML Summary - only show after validation */}
+                {(validationResult || parsedData) && (
                   <div>
                     <h3 className="font-medium mb-3 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
@@ -513,26 +624,31 @@ CREATE TABLE orders (
                     </h3>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Total Tables: {parsedData.totalTables}</Badge>
+                        <Badge variant="secondary">Total Tables: {parsedData?.totalTables || 0}</Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Sources: {parsedData.sources}</Badge>
+                        <Badge variant="secondary">Sources: {parsedData?.sources || 0}</Badge>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mb-4">
-                      {parsedData.isValid ? (
+                      {(validationError || (validationResult && validationResult.valid === false)) ? (
+                        <div className="flex items-center gap-1 text-red-600">
+                          <AlertCircle className="w-4 h-4" />
+                          <span className="text-sm">Invalid DSL</span>
+                        </div>
+                      ) : (validationResult?.valid || parsedData?.isValid) ? (
                         <div className="flex items-center gap-1 text-green-600">
                           <Check className="w-4 h-4" />
                           <span className="text-sm">Valid DSL</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 text-red-600">
+                        <div className="flex items-center gap-1 text-yellow-600">
                           <AlertCircle className="w-4 h-4" />
-                          <span className="text-sm">Invalid DSL</span>
+                          <span className="text-sm">Validation Pending</span>
                         </div>
                       )}
                     </div>
-                    {parsedData.tables && (
+                    {parsedData?.tables && parsedData.tables.length > 0 && (
                       <div>
                         <p className="text-sm font-medium mb-2">Tables:</p>
                         <div className="flex flex-wrap gap-1">
@@ -547,7 +663,7 @@ CREATE TABLE orders (
                   </div>
                 )}
 
-                <Separator />
+                {(validationResult || parsedData) && <Separator />}
 
                 {/* Validation results (AJV + Referential) */}
                 <div>
@@ -637,35 +753,6 @@ CREATE TABLE orders (
                   {!validating && !validationError && !validationResult && (
                     <div className="text-sm text-muted-foreground">
                       Click <strong>Validate DSL</strong> to run structural (AJV) and referential validation on the server.
-                    </div>
-                  )}
-                </div>
-
-                <Separator />
-
-                {/* Generated SQL */}
-                <div>
-                  <h3 className="font-medium mb-3 flex items-center gap-2">
-                    <Database className="w-4 h-4" />
-                    Generated SQL
-                    {selectedEngine && (
-                      <Badge variant="outline" className="text-xs">
-                        {engines.find((e) => e.id === selectedEngine)?.name}
-                      </Badge>
-                    )}
-                  </h3>
-                  {generatedSQL ? (
-                    <div className="bg-muted rounded-lg p-4 max-h-[400px] overflow-auto">
-                      <pre className="text-sm font-mono whitespace-pre-wrap">{generatedSQL}</pre>
-                    </div>
-                  ) : (
-                    <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-                      <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">
-                        {selectedEngine && dslContent
-                          ? "Click 'Generate SQL' to see the preview"
-                          : "Select an engine and upload DSL to generate SQL"}
-                      </p>
                     </div>
                   )}
                 </div>
