@@ -1,3 +1,4 @@
+// src/pages/CreateProject.tsx
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,14 +31,10 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
 
-
 const CreateProject = () => {
   const navigate = useNavigate();
-
-  // <-- MOVE hook call inside the component
   const { logout } = useAuth();
   const handleLogout = () => {
-    // optionally catch errors
     try {
       logout();
     } catch (err) {
@@ -53,12 +50,45 @@ const CreateProject = () => {
   const [parsedData, setParsedData] = useState<any>(null);
   const [generatedSQL, setGeneratedSQL] = useState("");
 
+  // validation states
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const engines = [
     { id: "postgres", name: "PostgreSQL", icon: "🐘" },
     { id: "mysql", name: "MySQL", icon: "🐬" },
     { id: "snowflake", name: "Snowflake", icon: "❄️" },
     { id: "mongodb", name: "MongoDB", icon: "🍃" },
   ];
+
+  // Helper to normalize backend responses for validation results
+  const normalizeValidation = (vr: any) => {
+    if (!vr) return { ajvErrors: [], referentialErrors: [], referentialWarnings: [] };
+
+    const ajvErrors =
+      vr.ajvErrors ||
+      vr.ajv_errors ||
+      (Array.isArray(vr.errors) && vr.errors.find((x: any) => x.keyword)) ||
+      [];
+
+    const referentialErrors =
+      vr.referentialErrors ||
+      vr.referential?.errors ||
+      vr.errors?.referentialErrors ||
+      vr.errors ||
+      vr.referentialErrors?.errors ||
+      [];
+
+    const referentialWarnings =
+      vr.referentialWarnings ||
+      vr.referential?.warnings ||
+      vr.warnings ||
+      vr.referentialWarnings?.warnings ||
+      [];
+
+    return { ajvErrors, referentialErrors, referentialWarnings };
+  };
 
   const handleFileUpload = (file: File) => {
     setUploadedFile(file);
@@ -110,9 +140,61 @@ const CreateProject = () => {
     });
   };
 
-  const handleValidateDSL = () => {
-    if (dslContent) {
-      mockParseDSL(dslContent);
+  // NEW: call backend /api/validate
+  const handleValidateDSL = async () => {
+    // quick local guard
+    if (!dslContent || !dslContent.trim()) {
+      setValidationError("DSL is empty. Paste or upload DSL to validate.");
+      setValidationResult(null);
+      return;
+    }
+
+    setValidating(true);
+    setValidationResult(null);
+    setValidationError(null);
+
+    try {
+      // use relative path '/api/validate' so dev proxy or deployed host works
+      const res = await fetch("/api/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+        },
+        body: dslContent,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        // server returned an HTTP error
+        const msg =
+          (data && data.error) ||
+          (data && JSON.stringify(data)) ||
+          `Server error ${res.status}`;
+        setValidationError(String(msg));
+        setValidationResult(null);
+      } else {
+        // successful response
+        setValidationResult(data);
+
+        // one-time debug to inspect raw shape
+        // eslint-disable-next-line no-console
+        console.debug("Validation result (raw):", data);
+
+        // update parsedData validity indicator with authoritative result if available
+        if (data && typeof data.valid === "boolean") {
+          setParsedData((prev: any) => ({ ...(prev || {}), isValid: data.valid }));
+        }
+      }
+    } catch (err: any) {
+      console.error("Validation request failed:", err);
+      setValidationError(
+        err?.message === "Failed to fetch"
+          ? "Unable to reach server. Is the backend running?"
+          : String(err)
+      );
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -345,10 +427,10 @@ CREATE TABLE orders (
                     variant="secondary"
                     className="w-full justify-start"
                     onClick={handleValidateDSL}
-                    disabled={!dslContent}
+                    disabled={!dslContent || validating}
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    Validate DSL
+                    {validating ? "Validating…" : "Validate DSL"}
                   </Button>
 
                   <Button
@@ -433,6 +515,100 @@ CREATE TABLE orders (
                     )}
                   </div>
                 )}
+
+                <Separator />
+
+                {/* Validation results (AJV + Referential) */}
+                <div>
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    Validation Results
+                  </h3>
+
+                  {validating && <div className="text-sm text-muted-foreground">Validating...</div>}
+
+                  {validationError && (
+                    <div className="text-sm text-red-600">Error: {validationError}</div>
+                  )}
+
+                  {validationResult && (() => {
+                    const { ajvErrors, referentialErrors, referentialWarnings } = normalizeValidation(validationResult);
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            Valid: {String(validationResult.valid ?? validationResult.isValid ?? false)}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            AJV errors: {ajvErrors?.length ?? 0}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Referential errors: {referentialErrors?.length ?? 0}
+                          </Badge>
+                          {referentialWarnings?.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              Warnings: {referentialWarnings.length}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* AJV errors */}
+                        {ajvErrors && ajvErrors.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">AJV Errors:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {ajvErrors.map((e: any, i: number) => (
+                                <li key={i}>
+                                  <code>{e.instancePath || e.dataPath || "/"}</code> — {e.message || JSON.stringify(e)}
+                                  {e.schemaPath ? <span className="text-muted-foreground"> ({e.schemaPath})</span> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Referential errors */}
+                        {referentialErrors && referentialErrors.length > 0 ? (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Referential Errors:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {referentialErrors.map((e: any, i: number) => {
+                                const message = typeof e === "string" ? e : e.message || e.msg || JSON.stringify(e);
+                                const path = e?.path || e?.location || null;
+                                return (
+                                  <li key={i}>
+                                    {message} {path ? <em className="text-muted-foreground">({path})</em> : null}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">No referential errors.</div>
+                        )}
+
+                        {/* Warnings */}
+                        {referentialWarnings && referentialWarnings.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Warnings:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {referentialWarnings.map((w: any, i: number) => (
+                                <li key={i}>{(typeof w === "string" ? w : w.message) ?? JSON.stringify(w)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {!validating && !validationError && !validationResult && (
+                    <div className="text-sm text-muted-foreground">
+                      Click <strong>Validate DSL</strong> to run structural (AJV) and referential validation on the server.
+                    </div>
+                  )}
+                </div>
 
                 <Separator />
 
