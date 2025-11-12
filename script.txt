@@ -6,6 +6,8 @@ npm install express cors body-parser js-yaml ajv
 npm install -D typescript tsx @types/express @types/node @types/cors
 npx tsc --init
 npm install -D @types/js-yaml
+npm install ajv ajv-formats
+npm install -D typescript @types/node
 
 frontend 
 npm init -y
