@@ -94,6 +94,17 @@ export function generateMermaidERD(ast: any, erdDir: string) {
 
   const written: Array<{ name: string; content: string }> = [];
 
+  // build a quick lookup from simple table name -> full target key(s)
+  // e.g., dim_product -> [ "dw.mart.dim_product", ... ]
+  const simpleNameIndex: Record<string, string[]> = {};
+  for (const tk of Object.keys(ast.targets || {})) {
+    const t = ast.targets[tk];
+    const simple = String(t.table || '').trim();
+    if (!simple) continue;
+    simpleNameIndex[simple] = simpleNameIndex[simple] || [];
+    simpleNameIndex[simple].push(tk); // full key
+  }
+
   // group tables by db.schema
   const tablesBySchema: Record<string, any[]> = {};
   for (const tkey of Object.keys(ast.targets || {})) {
@@ -109,51 +120,97 @@ export function generateMermaidERD(ast: any, erdDir: string) {
     const schema = parts[1] || 'public';
     const tables = tablesBySchema[schemaKey];
 
-    // Build erDiagram content
+    // Build erDiagram content (including FK edges after tables)
     const erLines: string[] = ['erDiagram'];
-    for (const t of tables) {
-      const tableName = sanitizeName(t.table);
-      erLines.push(`  ${tableName} {`);
-      for (const colNameRaw of Object.keys(t.columns || {})) {
-        const col = t.columns[colNameRaw];
-        const colName = sanitizeName(colNameRaw);
-        const ty = sanitizeTypeForMermaid(col.type || col.type?.toString?.() || '');
-        const flags: string[] = [];
-        if (col.pk) flags.push('PK');
-        if (col.fk) flags.push('FK');
-        if (col.not_null) flags.push('NOT_NULL');
-        if (col.unique) flags.push('UNIQUE');
-        const flagStr = flags.length ? ' ' + flags.join(' ') : '';
-        // Format: columnName TYPE FLAGS
-        erLines.push(`    ${colName} ${ty}${flagStr}`);
-      }
-      erLines.push('  }');
-      erLines.push('');
-    }
-    const erContent = erLines.join('\n') + '\n';
-    const erName = `erd_${db}_${schema}.mmd`;
-    fs.writeFileSync(path.join(erdDir, erName), erContent, 'utf8');
-    written.push({ name: erName, content: erContent });
 
-    // Build classDiagram content (fallback)
-    const classLines: string[] = ['classDiagram'];
-    for (const t of tables) {
-      const tableName = sanitizeName(t.table);
-      classLines.push(`  class ${tableName} {`);
-      for (const colNameRaw of Object.keys(t.columns || {})) {
-        const col = t.columns[colNameRaw];
-        const colName = sanitizeName(colNameRaw);
-        const ty = sanitizeTypeForMermaid(col.type || '');
-        // class diagram expects "+ name : type"
-        classLines.push(`    + ${colName} : ${ty}`);
+// collect rel lines separately
+const relLines: string[] = [];
+
+for (const t of tables) {
+  const tableName = sanitizeName(t.table);
+
+  // start table block
+  erLines.push('');
+  erLines.push(`  ${tableName} {`);
+
+  for (const colNameRaw of Object.keys(t.columns || {})) {
+    const col = t.columns[colNameRaw];
+
+    // sanitize column name and type
+    const colName = sanitizeName(colNameRaw);
+    // keep simple type token for erDiagram (avoid parentheses/flags that can break parser)
+    const ty = sanitizeTypeForMermaid(col.type || '');
+
+    // IMPORTANT: do NOT append PK/FK/NOT_NULL/UNIQUE tokens here for erDiagram
+    // (these tokens have caused parse errors in mermaid's erDiagram grammar)
+    erLines.push(`    ${colName} ${ty}`);
+  }
+
+  // close table block and add an explicit blank line after it
+  erLines.push('  }');
+  erLines.push('');
+}
+
+// Create FK relationships (unchanged logic but emit after a blank line)
+for (const t of tables) {
+  const childTableName = sanitizeName(t.table);
+  for (const colNameRaw of Object.keys(t.columns || {})) {
+    const col = t.columns[colNameRaw];
+    if (col && col.fk) {
+      const fkObj = typeof col.fk === 'string' ? { table: col.fk } : col.fk || {};
+      let fkTableSimple = fkObj.table || fkObj.table_name || fkObj.ref || null;
+      let fkColumn = fkObj.column || fkObj.col || null;
+
+      if (!fkTableSimple) {
+        const maybe = String(fkObj).trim();
+        if (maybe && maybe.includes('.')) {
+          const parts = maybe.split('.');
+          fkTableSimple = parts[parts.length - 2] || parts[0];
+          fkColumn = fkColumn || parts[parts.length - 1];
+        }
       }
-      classLines.push('  }');
-      classLines.push('');
+
+      let parentFullKey: string | null = null;
+      if (fkTableSimple) {
+        const candidates = simpleNameIndex[String(fkTableSimple).trim()] || [];
+        if (candidates.length === 1) {
+          parentFullKey = candidates[0];
+        } else if (candidates.length > 1) {
+          const prefer = candidates.find(c => c.includes(`.${schema}.`) || c.includes(`${db}.${schema}.`));
+          parentFullKey = prefer || candidates[0];
+        }
+      }
+
+      if (parentFullKey) {
+        const parentParts = parentFullKey.split('.');
+        const parentTableSimple = parentParts[parentParts.length - 1] || fkTableSimple;
+        const parentTableName = sanitizeName(parentTableSimple);
+        const left = parentTableName;
+        const right = childTableName;
+        const label = `${sanitizeName(fkColumn || 'fk')} -> ${sanitizeName(colNameRaw)}`;
+        relLines.push(`  ${left} ||--o{ ${right} : "${label}"`);
+      } else {
+        const left = sanitizeName(fkTableSimple || 'unknown_parent');
+        const right = childTableName;
+        const label = `${sanitizeName(fkColumn || 'fk')} -> ${sanitizeName(colNameRaw)}`;
+        relLines.push(`  ${left} ||--o{ ${right} : "${label}"`);
+      }
     }
-    const classContent = classLines.join('\n') + '\n';
-    const className = `class_${db}_${schema}.mmd`;
-    fs.writeFileSync(path.join(erdDir, className), classContent, 'utf8');
-    written.push({ name: className, content: classContent });
+  }
+}
+
+// append relationships with a blank line separator
+if (relLines.length) {
+  erLines.push('');
+  erLines.push('  %% Relationships');
+  for (const rl of relLines) erLines.push(rl);
+  erLines.push('');
+}
+
+const erContent = erLines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
+const erName = `erd_${db}_${schema}.mmd`;
+fs.writeFileSync(path.join(erdDir, erName), erContent, 'utf8');
+written.push({ name: erName, content: erContent });
   }
 
   return written;
