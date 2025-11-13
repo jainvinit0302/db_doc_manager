@@ -62,10 +62,16 @@ const DataVisualization: React.FC = () => {
     try {
       mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
     } catch (e) {
-      // ignore initialization errors
-      // mermaid may throw if already initialized — that's okay
+      // ignore initialization errors (mermaid already initialized in HMR/dev)
     }
   }, []);
+
+  // helper to escape HTML for fallback display
+  const escapeHtml = (s: string) =>
+    String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
   // Simple DSL parsing to show local table cards (keeps previous parsing behaviour)
   useEffect(() => {
@@ -240,118 +246,133 @@ const DataVisualization: React.FC = () => {
     };
   }, [dslContent]);
 
-  // Render first mermaid (ERD) into SVG when mermaids state changes
+  // ----------------------------
+  // MERMAID: render ERD into SVG
+  // Re-run when mermaids content changes OR when the ER tab becomes active
+  // ----------------------------
   useEffect(() => {
-  const container = erdContainerRef.current;
-  if (!container) return;
+    // only render when ER tab is active
+    if (activeTab !== "er-diagram") return;
 
-  // choose preferred mermaid content (prefer erd_ files or content containing erDiagram)
-  const pickMermaid = (preferType = 'erDiagram') => {
-    if (!mermaids || mermaids.length === 0) return null;
-    // 1) by file name
-    const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith(preferType === 'erDiagram' ? 'erd_' : 'class_'));
-    if (byName && byName.content) return byName.content;
-    // 2) by content
-    const byContent = mermaids.find(m => typeof m.content === 'string' && new RegExp(`(^|\\n)\\s*${preferType}\\b`, 'i').test(m.content));
-    if (byContent && byContent.content) return byContent.content;
-    // 3) fallback to first file
-    return mermaids[0].content || null;
-  };
+    const container = erdContainerRef.current;
+    if (!container) return;
 
-  const erMermaid = pickMermaid('erDiagram');
-  const classMermaid = (() => {
-    if (!mermaids || mermaids.length === 0) return null;
-    // find first class_ or content with classDiagram
-    const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith('class_'));
-    if (byName) return byName.content;
-    const byContent = mermaids.find(m => typeof m.content === 'string' && /(^|\n)\s*classDiagram\b/i.test(m.content));
-    if (byContent) return byContent.content;
-    return null;
-  })();
+    // pick preferred mermaid content (erDiagram first, classDiagram fallback)
+    const pickMermaid = (preferType = "erDiagram") => {
+      if (!mermaids || mermaids.length === 0) return null;
+      // 1) by filename (erd_ or class_)
+      const byName = mermaids.find((m) =>
+        preferType === "erDiagram"
+          ? m.name && m.name.toLowerCase().startsWith("erd_")
+          : m.name && m.name.toLowerCase().startsWith("class_")
+      );
+      if (byName && byName.content) return byName.content;
+      // 2) by content keyword
+      const contentMatch = mermaids.find((m) =>
+        typeof m.content === "string" && new RegExp(`(^|\\n)\\s*${preferType}\\b`, "i").test(m.content)
+      );
+      if (contentMatch && contentMatch.content) return contentMatch.content;
+      // 3) fallback
+      return mermaids[0].content || null;
+    };
 
-  const escapeAndShow = (text: string, errMsg?: string) => {
-    container.innerHTML = `<pre>${escapeHtml(text)}</pre>` + (errMsg ? `<div class="text-sm text-red-600 mt-2">Mermaid render error: ${escapeHtml(errMsg)}</div>` : '');
-  };
+    const erMermaid = pickMermaid("erDiagram");
+    const classMermaid = (() => {
+      if (!mermaids || mermaids.length === 0) return null;
+      const byName = mermaids.find((m) => m.name && m.name.toLowerCase().startsWith("class_"));
+      if (byName) return byName.content;
+      const byContent = mermaids.find((m) => typeof m.content === "string" && /(^|\n)\s*classDiagram\b/i.test(m.content));
+      if (byContent) return byContent.content;
+      return null;
+    })();
 
-  const tryRender = async (content: string | null) => {
-    if (!content) return false;
-    try {
-      // attempt parse first to get syntax errors early (some mermaid versions have parse())
-      if ((mermaid as any).parse && typeof (mermaid as any).parse === 'function') {
-        try {
-          (mermaid as any).parse(content);
-        } catch (parseErr) {
-          // parsing failed — surface the message and rethrow to fall back
-          throw parseErr;
+    const escapeAndShow = (text: string, errMsg?: string) => {
+      container.innerHTML =
+        `<pre>${escapeHtml(text)}</pre>` + (errMsg ? `<div class="text-sm text-red-600 mt-2">Mermaid render error: ${escapeHtml(errMsg)}</div>` : "");
+    };
+
+    const tryRender = async (content: string | null) => {
+      if (!content) return false;
+      try {
+        // optional parse step for early friendly errors
+        if ((mermaid as any).parse && typeof (mermaid as any).parse === "function") {
+          try {
+            (mermaid as any).parse(content);
+          } catch (parseErr) {
+            throw parseErr;
+          }
         }
-      }
 
-      // render: handle both Promise and sync return shapes
-      if (typeof (mermaid as any).render === 'function') {
-        const r = (mermaid as any).render(`mermaid_${Date.now()}`, content);
-        if (r && typeof r.then === 'function') {
-          const resolved = await r;
-          const svg = typeof resolved === 'string' ? resolved : resolved?.svg || resolved?.rendered || '';
-          if (!svg) throw new Error('Mermaid.render returned no svg');
+        // use mermaid.render if available
+        if (typeof (mermaid as any).render === "function") {
+          const r = (mermaid as any).render(`mermaid_${Date.now()}`, content);
+          if (r && typeof r.then === "function") {
+            const resolved = await r;
+            const svg = typeof resolved === "string" ? resolved : resolved?.svg || resolved?.rendered || "";
+            if (!svg) throw new Error("Mermaid.render returned no svg");
+            container.innerHTML = svg;
+            return true;
+          } else if (typeof r === "string") {
+            container.innerHTML = r;
+            return true;
+          }
+        }
+
+        // fallback to mermaidAPI.render
+        if ((mermaid as any).mermaidAPI && typeof (mermaid as any).mermaidAPI.render === "function") {
+          const apiRes = await (mermaid as any).mermaidAPI.render(`mermaid_${Date.now()}`, content);
+          const svg = apiRes && (apiRes.svg || apiRes?.rendered || "");
+          if (!svg) throw new Error("mermaidAPI.render returned no svg");
           container.innerHTML = svg;
           return true;
-        } else if (typeof r === 'string') {
-          container.innerHTML = r;
-          return true;
         }
+
+        // last resort: show raw content
+        escapeAndShow(content, "No mermaid renderer available");
+        return false;
+      } catch (err: any) {
+        // rethrow to let caller try fallback
+        throw err;
+      }
+    };
+
+    (async () => {
+      container.innerHTML = ""; // clear while rendering
+      // 1) try erDiagram content
+      try {
+        if (erMermaid) {
+          await tryRender(erMermaid);
+          return;
+        }
+      } catch (err: any) {
+        console.warn("erDiagram render failed:", err && (err.message || err.toString ? err.toString() : err));
       }
 
-      // fallback to mermaidAPI.render if present
-      if ((mermaid as any).mermaidAPI && typeof (mermaid as any).mermaidAPI.render === 'function') {
-        const apiRes = await (mermaid as any).mermaidAPI.render(`mermaid_${Date.now()}`, content);
-        const svg = apiRes && (apiRes.svg || apiRes?.rendered || '');
-        if (!svg) throw new Error('mermaidAPI.render returned no svg');
-        container.innerHTML = svg;
-        return true;
+      // 2) try classDiagram fallback
+      try {
+        if (classMermaid) {
+          await tryRender(classMermaid);
+          return;
+        }
+      } catch (err: any) {
+        console.warn("classDiagram render failed:", err && (err.message || err.toString ? err.toString() : err));
       }
 
-      // last resort: show raw text
-      escapeAndShow(content, 'No mermaid renderer available');
-      return false;
-    } catch (err: any) {
-      // bubble the error so caller can try fallback
-      throw err;
-    }
-  };
+      // 3) show raw fallback
+      const raw = erMermaid || (mermaids && mermaids[0] && mermaids[0].content) || "";
+      const errMsg = "Both erDiagram and classDiagram failed to render; showing raw mermaid for debugging.";
+      escapeAndShow(raw, errMsg);
+    })();
 
-  (async () => {
-    // clear container while rendering
-    container.innerHTML = '';
-    // 1) try ER diagram content first
-    try {
-      if (erMermaid) {
-        await tryRender(erMermaid);
-        return;
+    // cleanup: remove rendered SVG when dependencies change/unmount to avoid stale IDs
+    return () => {
+      try {
+        if (container) container.innerHTML = "";
+      } catch (e) {
+        // ignore
       }
-    } catch (err: any) {
-      console.warn('erDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
-      // continue to fallback
-    }
-
-    // 2) try classDiagram fallback (this previously worked for you)
-    try {
-      if (classMermaid) {
-        await tryRender(classMermaid);
-        return;
-      }
-    } catch (err: any) {
-      console.warn('classDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
-      // continue to show raw content
-    }
-
-    // 3) if both failed, show raw erMermaid (if present) or first mermaid
-    const raw = erMermaid || (mermaids && mermaids[0] && mermaids[0].content) || '';
-    const errMsg = 'Both erDiagram and classDiagram failed to render; showing raw mermaid for debugging.';
-    escapeAndShow(raw, errMsg);
-  })();
-
-}, [mermaids]);
-
+    };
+  }, [mermaids, activeTab]); // re-run when mermaids or active tab changes
 
   // helper to download csv text
   const downloadCSV = () => {
@@ -366,12 +387,6 @@ const DataVisualization: React.FC = () => {
     a.remove();
     URL.revokeObjectURL(url);
   };
-
-  const escapeHtml = (s: string) =>
-    String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
 
   // simple CSV -> table conversion for mapping view (first 200 rows safe)
   const csvTable = useMemo(() => {

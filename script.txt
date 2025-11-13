@@ -1,0 +1,7 @@
+// validation 
+
+node dist/cli.js validate --dir .dbdoc
+
+// erd, lineage etc
+
+node dist/cli.js generate --dir .dbdoc --out ./docs
