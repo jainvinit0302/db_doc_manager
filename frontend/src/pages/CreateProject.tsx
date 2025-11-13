@@ -1,5 +1,5 @@
-// src/pages/CreateProject.tsx
 import React, { useState, useEffect } from "react";
+import YAML from "js-yaml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,42 +29,39 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
 
-const CreateProject = () => {
+/**
+ * CreateProject.tsx
+ * - Upload / paste DSL
+ * - Validate (calls /api/validate)
+ * - Parse preview (mockParseDSL)
+ * - Generate SQL schema (Generate Schema button + modal)
+ * - Navigate to /data-visualization with state
+ */
+
+const CreateProject: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
-  
-  const handleLogout = () => {
-    try {
-      logout();
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
-  };
 
-  // Initialize state from navigation state or localStorage
   const [projectName, setProjectName] = useState(() => {
-    return location.state?.projectName || 
-           localStorage.getItem('dbdoc_projectName') || 
+    return location.state?.projectName ||
+           localStorage.getItem('dbdoc_projectName') ||
            "";
   });
-  
+
   const [dslContent, setDslContent] = useState(() => {
-    return location.state?.dslContent || 
-           localStorage.getItem('dbdoc_dslContent') || 
+    return location.state?.dslContent ||
+           localStorage.getItem('dbdoc_dslContent') ||
            "";
   });
-  
+
   const [uploadedFile, setUploadedFile] = useState<File | null>(() => {
-    // Note: Files can't be stored in localStorage, so we'll track filename only
     const savedFileName = localStorage.getItem('dbdoc_uploadedFileName');
     return savedFileName ? { name: savedFileName } as File : null;
   });
-  
+
   const [isDragOver, setIsDragOver] = useState(false);
-  const [parsedData, setParsedData] = useState<any>(
-    location.state?.parsedData || null
-  );
+  const [parsedData, setParsedData] = useState<any>(location.state?.parsedData || null);
 
   // validation states
   const [validating, setValidating] = useState(false);
@@ -73,29 +70,28 @@ const CreateProject = () => {
   const [isValidated, setIsValidated] = useState(false);
   const [isValidationPassed, setIsValidationPassed] = useState(false);
 
-  // Persist state to localStorage whenever it changes
+  // schema modal
+  const [schemaSQL, setSchemaSQL] = useState<string | null>(null);
+  const [showSchemaModal, setShowSchemaModal] = useState(false);
+
+  /* Persist state to localStorage */
   useEffect(() => {
-    if (projectName) {
-      localStorage.setItem('dbdoc_projectName', projectName);
-    }
+    if (projectName) localStorage.setItem('dbdoc_projectName', projectName);
   }, [projectName]);
 
   useEffect(() => {
     if (dslContent) {
       localStorage.setItem('dbdoc_dslContent', dslContent);
-      // Reset validation status when content changes (don't auto-parse)
       setIsValidated(false);
       setIsValidationPassed(false);
       setValidationResult(null);
       setValidationError(null);
-      setParsedData(null); // Clear parsed data until validation is run
+      setParsedData(null);
     }
   }, [dslContent]);
 
-  // Clear saved state when component unmounts or navigates away
   useEffect(() => {
     return () => {
-      // Only clear if we're not navigating to visualization
       if (!location.pathname.includes('/data-visualization')) {
         localStorage.removeItem('dbdoc_projectName');
         localStorage.removeItem('dbdoc_dslContent');
@@ -104,7 +100,6 @@ const CreateProject = () => {
     };
   }, [location.pathname]);
 
-  // Helper to normalize backend responses for validation results
   const normalizeValidation = (vr: any) => {
     if (!vr) return { ajvErrors: [], referentialErrors: [], referentialWarnings: [] };
 
@@ -134,11 +129,11 @@ const CreateProject = () => {
 
   const handleFileUpload = (file: File) => {
     setUploadedFile(file);
+    localStorage.setItem('dbdoc_uploadedFileName', file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setDslContent(content);
-      // Don't auto-parse on file upload - wait for explicit validation
     };
     reader.readAsText(file);
   };
@@ -147,9 +142,7 @@ const CreateProject = () => {
     e.preventDefault();
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFileUpload(files[0] as File);
-    }
+    if (files.length > 0) handleFileUpload(files[0] as File);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -169,12 +162,10 @@ const CreateProject = () => {
         return;
       }
 
-      // Parse actual tables from the YAML structure
       const tables: string[] = [];
       const sources: string[] = [];
       const mappings: string[] = [];
 
-      // Extract tables from targets section
       const tablesMatch = content.match(/tables:\s*\n([\s\S]*?)(?=\n\w+:|$)/);
       if (tablesMatch) {
         const tableSection = tablesMatch[1];
@@ -182,7 +173,6 @@ const CreateProject = () => {
         tables.push(...tableNames.map(match => match.replace(/- name:\s*/, '')));
       }
 
-      // Extract sources
       const sourcesMatch = content.match(/sources:\s*\n([\s\S]*?)(?=\nmappings:|$)/);
       if (sourcesMatch) {
         const sourceSection = sourcesMatch[1];
@@ -190,7 +180,6 @@ const CreateProject = () => {
         sources.push(...sourceIds.map(match => match.replace(/- id:\s*/, '')));
       }
 
-      // Extract mappings
       const mappingsMatch = content.match(/mappings:\s*\n([\s\S]*?)(?=\nnotes:|$)/);
       if (mappingsMatch) {
         const mappingSection = mappingsMatch[1];
@@ -198,7 +187,7 @@ const CreateProject = () => {
         mappings.push(...targetMappings.map(match => {
           const targetPath = match.replace(/- target:\s*/, '');
           const tableName = targetPath.split('.').pop() || '';
-          return tableName.split('.')[0]; // Get the column name
+          return tableName.split('.')[0];
         }));
       }
 
@@ -207,12 +196,11 @@ const CreateProject = () => {
         sources: sources.length,
         tables: tables,
         mappings: mappings.length,
-        relationships: 0, // Calculate from foreign keys if needed
-        isValid: null, // Don't determine validity here - wait for backend validation
+        relationships: 0,
+        isValid: null,
       });
 
       console.log('Parsed DSL:', { tables, sources, mappings });
-
     } catch (error) {
       console.error('Error parsing DSL:', error);
       setParsedData({
@@ -226,9 +214,7 @@ const CreateProject = () => {
     }
   };
 
-  // NEW: call backend /api/validate
   const handleValidateDSL = async () => {
-    // quick local guard
     if (!dslContent || !dslContent.trim()) {
       setValidationError("DSL is empty. Paste or upload DSL to validate.");
       setValidationResult(null);
@@ -242,11 +228,9 @@ const CreateProject = () => {
     setValidationResult(null);
     setValidationError(null);
 
-    // Parse DSL first for local preview
     mockParseDSL(dslContent);
 
     try {
-      // use relative path '/api/validate' so dev proxy or deployed host works
       const res = await fetch("/api/validate", {
         method: "POST",
         headers: {
@@ -258,7 +242,6 @@ const CreateProject = () => {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        // server returned an HTTP error
         const msg =
           (data && data.error) ||
           (data && JSON.stringify(data)) ||
@@ -267,22 +250,13 @@ const CreateProject = () => {
         setValidationResult(null);
         setIsValidated(true);
         setIsValidationPassed(false);
-        // Update parsed data to reflect failed validation
         setParsedData((prev: any) => ({ ...(prev || {}), isValid: false }));
       } else {
-        // successful response
         setValidationResult(data);
         setIsValidated(true);
-
-        // Check if validation passed
         const isValid = data?.valid === true;
         setIsValidationPassed(isValid);
-
-        // one-time debug to inspect raw shape
-        // eslint-disable-next-line no-console
         console.debug("Validation result (raw):", data);
-
-        // update parsedData validity indicator with authoritative result if available
         if (data && typeof data.valid === "boolean") {
           setParsedData((prev: any) => ({ ...(prev || {}), isValid: data.valid }));
         }
@@ -296,46 +270,138 @@ const CreateProject = () => {
       );
       setIsValidated(true);
       setIsValidationPassed(false);
-      // Update parsed data to reflect failed validation
       setParsedData((prev: any) => ({ ...(prev || {}), isValid: false }));
     } finally {
       setValidating(false);
     }
   };
 
-  const handleDataVisualization = () => {
-    if (dslContent) {
-      try {
-        // Simple validation
-        if (!dslContent.includes("tables:") || !dslContent.includes("name:")) {
-          setValidationError("Invalid DSL format. Please ensure it contains tables with names.");
-          return;
+  // === SCHEMA GENERATION ===
+  const sqlId = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+
+  const generateSchemaFromDSL = (content: string) => {
+    if (!content) return null;
+    let doc: any;
+    try {
+      doc = YAML.load(content);
+    } catch (err: any) {
+      throw new Error("Failed to parse YAML: " + (err?.message || String(err)));
+    }
+
+    const sqlChunks: string[] = [];
+    const targets: any[] = Array.isArray(doc?.targets) ? doc.targets : [];
+
+    targets.forEach((tgt) => {
+      const schema = tgt.schema || "public";
+      const tables = Array.isArray(tgt.tables) ? tgt.tables : [];
+      tables.forEach((tbl: any) => {
+        const tableName = tbl.name;
+        if (!tableName) return;
+        const fullName = [schema, tableName].map(sqlId).join(".");
+        const cols: string[] = [];
+        const pkCols: string[] = [];
+
+        const columns = Array.isArray(tbl.columns) ? tbl.columns : [];
+
+        columns.forEach((c: any) => {
+          const col = typeof c === "string" ? { name: c } : c;
+          const name = col.name || col.column || "col";
+          const type = col.type || "TEXT";
+          const parts = [sqlId(name), type];
+
+          if (col.not_null || col.notNull || col.required) parts.push("NOT NULL");
+          if (col.unique) parts.push("UNIQUE");
+          if (col.default !== undefined && col.default !== null) parts.push(`DEFAULT ${col.default}`);
+
+          if (col.pk || col.primary || col.primary_key) pkCols.push(name);
+
+          cols.push(parts.join(" "));
+        });
+
+        let create = `CREATE TABLE IF NOT EXISTS ${fullName} (\n  ${cols.join(",\n  ")}`;
+        if (pkCols.length > 0) {
+          create += `,\n  PRIMARY KEY (${pkCols.map(sqlId).join(", ")})`;
         }
+        create += `\n);\n`;
+        sqlChunks.push(create);
+      });
+    });
 
-        // Parse the DSL content
-        const parsed = mockParseDSL(dslContent);
-        setParsedData(parsed);
+    if (sqlChunks.length === 0) return null;
+    return sqlChunks.join("\n");
+  };
 
-        // Save current state and navigate
-        const navigationState = {
-          projectName: projectName || "Untitled Project",
-          engine: "PostgreSQL",
-          dslContent,
-          parsedData: parsed,
-          uploadedFileName: uploadedFile?.name
-        };
-
-        // Clear localStorage since we're passing via navigation state
-        localStorage.removeItem('dbdoc_projectName');
-        localStorage.removeItem('dbdoc_dslContent'); 
-        localStorage.removeItem('dbdoc_uploadedFileName');
-
-        // Navigate with state
-        navigate("/data-visualization", { state: navigationState });
-      } catch (error) {
-        console.error("Error parsing DSL content:", error);
-        setValidationError("Error parsing DSL content. Please check the format.");
+  const handleGenerateSchema = () => {
+    try {
+      const sql = generateSchemaFromDSL(dslContent);
+      if (!sql) {
+        setValidationError("No tables found in DSL to generate schema.");
+        return;
       }
+      setSchemaSQL(sql);
+      setShowSchemaModal(true);
+    } catch (err: any) {
+      setValidationError(err?.message || String(err));
+    }
+  };
+
+  const downloadSQL = () => {
+    if (!schemaSQL) return;
+    const blob = new Blob([schemaSQL], { type: "text/sql;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(projectName || "schema").replace(/\s+/g, "_")}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDataVisualization = () => {
+    if (!dslContent) {
+      setValidationError("Please provide DSL content first.");
+      return;
+    }
+
+    // Basic sanity check
+    if (!dslContent.includes("tables:") || !dslContent.includes("name:")) {
+      setValidationError("Invalid DSL format. Please ensure it contains tables with names.");
+      return;
+    }
+
+    mockParseDSL(dslContent);
+
+    // Optionally generate schema and include in navigation state
+    let generatedSchema: string | null = null;
+    try {
+      generatedSchema = generateSchemaFromDSL(dslContent);
+    } catch (err) {
+      // ignore generation errors — it's optional
+      generatedSchema = null;
+    }
+
+    const navigationState = {
+      projectName: projectName || "Untitled Project",
+      engine: "PostgreSQL",
+      tables: parsedData?.tables || [],
+      dslContent,
+      generatedSchema,
+    };
+
+    // Clear localStorage and navigate
+    localStorage.removeItem('dbdoc_projectName');
+    localStorage.removeItem('dbdoc_dslContent');
+    localStorage.removeItem('dbdoc_uploadedFileName');
+
+    navigate("/data-visualization", { state: navigationState });
+  };
+
+  const handleLogout = () => {
+    try {
+      logout();
+    } catch (err) {
+      console.error("Logout error:", err);
     }
   };
 
@@ -345,7 +411,6 @@ const CreateProject = () => {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container px-4">
           <div className="flex items-center h-16 justify-between">
-            {/*Back button */}
             <div className="flex items-center">
               <Button
                 variant="ghost"
@@ -360,7 +425,7 @@ const CreateProject = () => {
             </div>
 
             <div className="flex-1 flex justify-center px-4">
-              <div className="w-full max-w-xl"> 
+              <div className="w-full max-w-xl">
                 <Input
                   placeholder="Enter project name..."
                   value={projectName}
@@ -371,7 +436,6 @@ const CreateProject = () => {
               </div>
             </div>
 
-            {/* Avatar + dropdown */}
             <div className="flex items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -412,11 +476,10 @@ const CreateProject = () => {
         </div>
       </header>
 
-
       {/* Three-Panel Layout */}
       <main className="container px-4 py-6">
         <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-8rem)]">
-          {/* LEFT PANEL */}
+          {/* LEFT PANEL (Upload / Paste) */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
@@ -426,7 +489,6 @@ const CreateProject = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* File Upload */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">1. Upload File</label>
                   <div
@@ -438,9 +500,7 @@ const CreateProject = () => {
                     onDragLeave={handleDragLeave}
                   >
                     <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Drop your DSL file here or
-                    </p>
+                    <p className="text-sm text-muted-foreground mb-2">Drop your DSL file here or</p>
                     <Button
                       size="sm"
                       variant="outline"
@@ -466,7 +526,6 @@ const CreateProject = () => {
 
                 <Separator />
 
-                {/* Paste Code */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">2. Paste Code</label>
                   <Textarea
@@ -480,7 +539,7 @@ const CreateProject = () => {
             </Card>
           </div>
 
-          {/* MIDDLE PANEL */}
+          {/* MIDDLE PANEL (Actions) */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
@@ -504,22 +563,13 @@ const CreateProject = () => {
                   variant="secondary"
                   className="w-full justify-start"
                   onClick={handleDataVisualization}
-                  disabled={!dslContent || !isValidated || !isValidationPassed}
-                  title={
-                    !dslContent 
-                      ? "Please provide DSL content first"
-                      : !isValidated 
-                      ? "Please validate the DSL first"
-                      : !isValidationPassed
-                      ? "DSL validation failed. Please fix errors and validate again"
-                      : "Generate data visualization"
-                  }
+                  disabled={!dslContent}
+                  title={!dslContent ? "Please provide DSL content first" : "Go to Data Visualization"}
                 >
                   <BarChart3 className="w-4 h-4 mr-2" />
                   Data Visualization
                 </Button>
-                
-                {/* Validation Status Indicator */}
+
                 {dslContent && isValidated && (
                   <div className="text-xs text-center mt-2">
                     {isValidationPassed ? (
@@ -539,14 +589,13 @@ const CreateProject = () => {
             </Card>
           </div>
 
-          {/* RIGHT PANEL */}
+          {/* RIGHT PANEL (Preview + Validation results) */}
           <div className="col-span-6">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Preview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Parsed YAML Summary */}
                 {parsedData && (
                   <div>
                     <h3 className="font-medium mb-3 flex items-center gap-2">
@@ -596,7 +645,6 @@ const CreateProject = () => {
 
                 <Separator />
 
-                {/* Validation results (AJV + Referential) */}
                 <div>
                   <h3 className="font-medium mb-3 flex items-center gap-2">
                     <Check className="w-4 h-4" />
@@ -631,7 +679,6 @@ const CreateProject = () => {
                           )}
                         </div>
 
-                        {/* AJV errors */}
                         {ajvErrors && ajvErrors.length > 0 && (
                           <div>
                             <p className="text-sm font-medium mb-1">AJV Errors:</p>
@@ -646,7 +693,6 @@ const CreateProject = () => {
                           </div>
                         )}
 
-                        {/* Referential errors */}
                         {referentialErrors && referentialErrors.length > 0 ? (
                           <div>
                             <p className="text-sm font-medium mb-1">Referential Errors:</p>
@@ -666,7 +712,6 @@ const CreateProject = () => {
                           <div className="text-sm text-muted-foreground">No referential errors.</div>
                         )}
 
-                        {/* Warnings */}
                         {referentialWarnings && referentialWarnings.length > 0 && (
                           <div>
                             <p className="text-sm font-medium mb-1">Warnings:</p>
@@ -692,6 +737,29 @@ const CreateProject = () => {
           </div>
         </div>
       </main>
+
+      {/* Schema Modal */}
+      {showSchemaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-background border border-border rounded-lg shadow-lg p-4">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <h3 className="text-lg font-medium">Generated SQL Schema</h3>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(schemaSQL || ""); }}>
+                  Copy
+                </Button>
+                <Button size="sm" onClick={downloadSQL}>Download</Button>
+                <Button size="sm" variant="outline" onClick={() => setShowSchemaModal(false)}>Close</Button>
+              </div>
+            </div>
+            <textarea
+              readOnly
+              value={schemaSQL || ""}
+              className="w-full h-72 font-mono text-xs p-3 border rounded"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
