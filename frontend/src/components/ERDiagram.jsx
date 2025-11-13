@@ -1,30 +1,40 @@
-
-// ============================================
-// frontend/src/components/ERDiagram.jsx - CORRECTED
-// ============================================
+// frontend/src/components/ERDiagram.jsx
 import React, { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
 
 export default function ERDiagram({ processedData }) {
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
+  const [diagramName, setDiagramName] = useState("Entity Relationship Diagram");
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !processedData) return;
 
-    // Initialize mermaid
+    // Set diagram name from project
+    if (processedData.project) {
+      setDiagramName(`${processedData.project} - ER Diagram`);
+    }
+
     mermaid.initialize({
       startOnLoad: false,
       theme: "dark",
-      securityLevel: "loose",
+      themeVariables: {
+        primaryColor: "#1e293b",
+        primaryTextColor: "#e2e8f0",
+        primaryBorderColor: "#3b82f6",
+        lineColor: "#64748b",
+        secondaryColor: "#0f172a",
+        tertiaryColor: "#334155",
+        fontSize: "14px",
+        fontFamily: "Inter, system-ui, sans-serif",
+      },
     });
 
-    const def = buildMermaid(processedData);
-    const uid = "er-" + Math.random().toString(36).slice(2, 9);
+    const erd = processedData.erd || "erDiagram\n  NO_DATA[No data]";
+    const uid = "erd-" + Math.random().toString(36).slice(2, 9);
 
-    // Render with error handling
     mermaid
-      .render(uid, def)
+      .render(uid, erd)
       .then(({ svg }) => {
         if (containerRef.current) {
           containerRef.current.innerHTML = svg;
@@ -37,92 +47,32 @@ export default function ERDiagram({ processedData }) {
       });
   }, [processedData]);
 
-  if (error) {
-    return (
-      <div>
-        <h3>ER Diagram</h3>
-        <div className="er-canvas">
-          <div style={{ color: "#f87171", padding: 16 }}>
-            ⚠️ Failed to render ER Diagram: {error}
+  return (
+    <div style={{ height: "100%" }}>
+      <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
+        <h3 style={{ margin: 0, fontSize: 18 }}>{diagramName}</h3>
+        {processedData?.documentation?.summary && (
+          <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "var(--muted)" }}>
+            {processedData.documentation.summary.totalTables} tables across{" "}
+            {processedData.documentation.summary.totalTargets} target(s)
+          </p>
+        )}
+      </div>
+
+      {error ? (
+        <div className="er-canvas" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center", color: "#ef4444" }}>
+            <p style={{ fontSize: 14 }}>⚠️ Failed to render diagram</p>
+            <p style={{ fontSize: 12, color: "var(--muted)" }}>{error}</p>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h3>ER Diagram</h3>
-      <div className="er-canvas" ref={containerRef}>
-        <em style={{ color: "#94a3b8" }}>Rendering diagram...</em>
-      </div>
+      ) : (
+        <div className="er-canvas" ref={containerRef}>
+          <div style={{ textAlign: "center", color: "var(--muted)", paddingTop: 40 }}>
+            Rendering diagram...
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function buildMermaid(processedData) {
-  const erd = processedData?.erd;
-  
-  // If backend already generated ERD, use it
-  if (erd && typeof erd === 'string' && erd.includes('erDiagram')) {
-    return erd;
-  }
-
-  // Otherwise generate from targets
-  if (!processedData?.targets || processedData.targets.length === 0) {
-    return `
-      erDiagram
-      CUSTOMER {
-        INT id PK
-        string name
-        string email
-      }
-      ORDER {
-        INT id PK
-        INT customer_id FK
-        string item
-      }
-      CUSTOMER ||--o{ ORDER : places
-    `;
-  }
-
-  let def = "erDiagram\n";
-
-  processedData.targets.forEach((t) => {
-    const tableLabel = safeTableLabel(t.schema + "_" + (t.tables?.[0]?.name || t.name || "TABLE"));
-    
-    def += `  ${tableLabel} {\n`;
-    
-    if (t.tables && t.tables[0] && t.tables[0].columns) {
-      t.tables[0].columns.forEach((c) => {
-        if (!c || !c.name) return;
-        const colType = (c.type || "string").toLowerCase().split("(")[0];
-        const pkMark = c.pk ? " PK" : "";
-        const ukMark = c.unique && !c.pk ? " UK" : "";
-        def += `    ${colType} ${c.name}${pkMark}${ukMark}\n`;
-      });
-    }
-    
-    def += "  }\n";
-  });
-
-  // Add relationships if multiple tables
-  if (processedData.targets.length >= 2) {
-    const t1 = processedData.targets[0];
-    const t2 = processedData.targets[1];
-    const a = safeTableLabel(t1.schema + "_" + (t1.tables?.[0]?.name || t1.name || "TABLE"));
-    const b = safeTableLabel(t2.schema + "_" + (t2.tables?.[0]?.name || t2.name || "TABLE"));
-    def += `  ${a} ||--o{ ${b} : relates\n`;
-  }
-
-  return def;
-}
-
-function safeTableLabel(name) {
-  if (!name) return "UNKNOWN";
-  return String(name)
-    .split(".")
-    .pop()
-    .replace(/[^A-Za-z0-9_]/g, "_")
-    .toUpperCase();
 }
