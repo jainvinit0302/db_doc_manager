@@ -16,6 +16,7 @@ type Artifacts = {
 
 type DbDocPanelProps = {
   onArtifacts?: (artifacts: Artifacts) => void;
+  initialContent?: string;
 };
 
 type ValidateResponse = {
@@ -25,8 +26,8 @@ type ValidateResponse = {
   referentialWarnings?: string[];
 };
 
-export default function DbDocPanel({ onArtifacts }: DbDocPanelProps) {
-  const [yamlText, setYamlText] = useState<string>('');
+export default function DbDocPanel({ onArtifacts, initialContent }: DbDocPanelProps) {
+  const [yamlText, setYamlText] = useState<string>(initialContent || '');
   const [busy, setBusy] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResponse | null>(null);
   const [serverErrors, setServerErrors] = useState<string | null>(null);
@@ -354,6 +355,13 @@ export default function DbDocPanel({ onArtifacts }: DbDocPanelProps) {
     }
   }
 
+  // Auto-generate artifacts when initial content is provided
+  useEffect(() => {
+    if (initialContent && initialContent.trim()) {
+      onGenerate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialContent]);
 
   function downloadCSV() {
     if (!csvContent) return;

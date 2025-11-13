@@ -17,7 +17,7 @@ interface Props {
   className?: string;
 }
 
-const style = [
+const style: any = [
   {
     selector: 'node[type="source"]',
     style: {
@@ -112,7 +112,12 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
       container: containerRef.current,
       elements: [],
       style,
-      layout: { name: "dagre", rankDir: "LR", nodeSep: 40, edgeSep: 8 },
+      layout: { 
+        name: "dagre",
+        rankDir: "LR", 
+        nodeSep: 40, 
+        edgeSep: 8 
+      } as any,
       wheelSensitivity: 0.2,
     });
 
@@ -185,7 +190,7 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
         // add the table edge
         elements.push({
           data: {
-            id: te.id,
+            id: te.id || `table_edge_${te.source}_${te.target}_${elements.length}`,
             source: te.source,
             target: te.target,
             type: "table_lineage",
@@ -216,7 +221,7 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
 
         elements.push({
           data: {
-            id: e.id,
+            id: e.id || `column_edge_${e.source}_${e.target}_${elements.length}`,
             source: e.source,
             target: e.target,
             type: e.type || "column_lineage",
@@ -235,7 +240,12 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
 
     // run layout
     try {
-      cy.layout({ name: "dagre", rankDir: "LR", nodeSep: 40, edgeSep: 8 }).run();
+      cy.layout({ 
+        name: "dagre", 
+        rankDir: "LR", 
+        nodeSep: 40, 
+        edgeSep: 8 
+      } as any).run();
     } catch (err) {
       console.error("Cytoscape layout failed:", err);
     }
