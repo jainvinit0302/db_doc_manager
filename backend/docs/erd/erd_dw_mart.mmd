@@ -1,7 +1,8 @@
 erDiagram
   dim_user {
-    integer user_id PK
-    varchar_320 email NOT_NULL
-    varchar_256 address_street
-    timestamp created_at
+    user_id integer PK
+    email varchar_320 NOT_NULL UNIQUE
+    address_street varchar_256
+    created_at timestamp
   }
+
