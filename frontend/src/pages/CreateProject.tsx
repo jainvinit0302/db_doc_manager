@@ -56,7 +56,6 @@ const CreateProject = () => {
   });
   
   const [uploadedFile, setUploadedFile] = useState<File | null>(() => {
-    // Note: Files can't be stored in localStorage, so we'll track filename only
     const savedFileName = localStorage.getItem('dbdoc_uploadedFileName');
     return savedFileName ? { name: savedFileName } as File : null;
   });
@@ -73,7 +72,6 @@ const CreateProject = () => {
   const [isValidated, setIsValidated] = useState(false);
   const [isValidationPassed, setIsValidationPassed] = useState(false);
 
-  // Persist state to localStorage whenever it changes
   useEffect(() => {
     if (projectName) {
       localStorage.setItem('dbdoc_projectName', projectName);
@@ -83,19 +81,16 @@ const CreateProject = () => {
   useEffect(() => {
     if (dslContent) {
       localStorage.setItem('dbdoc_dslContent', dslContent);
-      // Reset validation status when content changes (don't auto-parse)
       setIsValidated(false);
       setIsValidationPassed(false);
       setValidationResult(null);
       setValidationError(null);
-      setParsedData(null); // Clear parsed data until validation is run
+      setParsedData(null);
     }
   }, [dslContent]);
 
-  // Clear saved state when component unmounts or navigates away
   useEffect(() => {
     return () => {
-      // Only clear if we're not navigating to visualization
       if (!location.pathname.includes('/data-visualization')) {
         localStorage.removeItem('dbdoc_projectName');
         localStorage.removeItem('dbdoc_dslContent');
@@ -104,7 +99,6 @@ const CreateProject = () => {
     };
   }, [location.pathname]);
 
-  // Helper to normalize backend responses for validation results
   const normalizeValidation = (vr: any) => {
     if (!vr) return { ajvErrors: [], referentialErrors: [], referentialWarnings: [] };
 
@@ -138,7 +132,6 @@ const CreateProject = () => {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setDslContent(content);
-      // Don't auto-parse on file upload - wait for explicit validation
     };
     reader.readAsText(file);
   };
@@ -162,19 +155,17 @@ const CreateProject = () => {
     setIsDragOver(false);
   };
 
+  // Lightweight client-side parse for preview (unchanged)
   const mockParseDSL = (content: string) => {
     try {
       if (!content || !content.trim()) {
         setParsedData(null);
         return;
       }
-
-      // Parse actual tables from the YAML structure
       const tables: string[] = [];
       const sources: string[] = [];
       const mappings: string[] = [];
 
-      // Extract tables from targets section
       const tablesMatch = content.match(/tables:\s*\n([\s\S]*?)(?=\n\w+:|$)/);
       if (tablesMatch) {
         const tableSection = tablesMatch[1];
@@ -182,7 +173,6 @@ const CreateProject = () => {
         tables.push(...tableNames.map(match => match.replace(/- name:\s*/, '')));
       }
 
-      // Extract sources
       const sourcesMatch = content.match(/sources:\s*\n([\s\S]*?)(?=\nmappings:|$)/);
       if (sourcesMatch) {
         const sourceSection = sourcesMatch[1];
@@ -190,29 +180,25 @@ const CreateProject = () => {
         sources.push(...sourceIds.map(match => match.replace(/- id:\s*/, '')));
       }
 
-      // Extract mappings
       const mappingsMatch = content.match(/mappings:\s*\n([\s\S]*?)(?=\nnotes:|$)/);
       if (mappingsMatch) {
         const mappingSection = mappingsMatch[1];
         const targetMappings = mappingSection.match(/- target:\s*[^\n]+/g) || [];
         mappings.push(...targetMappings.map(match => {
           const targetPath = match.replace(/- target:\s*/, '');
-          const tableName = targetPath.split('.').pop() || '';
-          return tableName.split('.')[0]; // Get the column name
+          const tableName = targetPath.split('.').pop() || targetPath;
+          return tableName;
         }));
       }
 
       setParsedData({
         totalTables: tables.length,
         sources: sources.length,
-        tables: tables,
+        tables,
         mappings: mappings.length,
-        relationships: 0, // Calculate from foreign keys if needed
-        isValid: null, // Don't determine validity here - wait for backend validation
+        relationships: 0,
+        isValid: null,
       });
-
-      console.log('Parsed DSL:', { tables, sources, mappings });
-
     } catch (error) {
       console.error('Error parsing DSL:', error);
       setParsedData({
@@ -226,9 +212,8 @@ const CreateProject = () => {
     }
   };
 
-  // NEW: call backend /api/validate
+  // Validate button: unchanged (calls /api/validate)
   const handleValidateDSL = async () => {
-    // quick local guard
     if (!dslContent || !dslContent.trim()) {
       setValidationError("DSL is empty. Paste or upload DSL to validate.");
       setValidationResult(null);
@@ -242,11 +227,9 @@ const CreateProject = () => {
     setValidationResult(null);
     setValidationError(null);
 
-    // Parse DSL first for local preview
     mockParseDSL(dslContent);
 
     try {
-      // use relative path '/api/validate' so dev proxy or deployed host works
       const res = await fetch("/api/validate", {
         method: "POST",
         headers: {
@@ -258,7 +241,6 @@ const CreateProject = () => {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        // server returned an HTTP error
         const msg =
           (data && data.error) ||
           (data && JSON.stringify(data)) ||
@@ -267,22 +249,16 @@ const CreateProject = () => {
         setValidationResult(null);
         setIsValidated(true);
         setIsValidationPassed(false);
-        // Update parsed data to reflect failed validation
         setParsedData((prev: any) => ({ ...(prev || {}), isValid: false }));
       } else {
-        // successful response
         setValidationResult(data);
         setIsValidated(true);
 
-        // Check if validation passed
         const isValid = data?.valid === true;
         setIsValidationPassed(isValid);
 
-        // one-time debug to inspect raw shape
-        // eslint-disable-next-line no-console
         console.debug("Validation result (raw):", data);
 
-        // update parsedData validity indicator with authoritative result if available
         if (data && typeof data.valid === "boolean") {
           setParsedData((prev: any) => ({ ...(prev || {}), isValid: data.valid }));
         }
@@ -296,46 +272,78 @@ const CreateProject = () => {
       );
       setIsValidated(true);
       setIsValidationPassed(false);
-      // Update parsed data to reflect failed validation
       setParsedData((prev: any) => ({ ...(prev || {}), isValid: false }));
     } finally {
       setValidating(false);
     }
   };
 
-  const handleDataVisualization = () => {
-    if (dslContent) {
-      try {
-        // Simple validation
-        if (!dslContent.includes("tables:") || !dslContent.includes("name:")) {
-          setValidationError("Invalid DSL format. Please ensure it contains tables with names.");
-          return;
-        }
+  // NEW: Data Visualization button handler — call /api/generate
+  const handleDataVisualization = async () => {
+    if (!dslContent || !dslContent.trim()) {
+      setValidationError("DSL is empty. Paste or upload DSL to generate artifacts.");
+      return;
+    }
 
-        // Parse the DSL content
-        const parsed = mockParseDSL(dslContent);
-        setParsedData(parsed);
+    // Must be validated first
+    if (!isValidated || !isValidationPassed) {
+      setValidationError("Please validate the DSL and ensure it passes before generating visualization.");
+      return;
+    }
 
-        // Save current state and navigate
-        const navigationState = {
-          projectName: projectName || "Untitled Project",
-          engine: "PostgreSQL",
-          dslContent,
-          parsedData: parsed,
-          uploadedFileName: uploadedFile?.name
-        };
+    setValidating(true);
+    setValidationError(null);
 
-        // Clear localStorage since we're passing via navigation state
-        localStorage.removeItem('dbdoc_projectName');
-        localStorage.removeItem('dbdoc_dslContent'); 
-        localStorage.removeItem('dbdoc_uploadedFileName');
+    try {
+      // call /api/generate
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "text/yaml; charset=utf-8" },
+        body: dslContent,
+      });
 
-        // Navigate with state
-        navigate("/data-visualization", { state: navigationState });
-      } catch (error) {
-        console.error("Error parsing DSL content:", error);
-        setValidationError("Error parsing DSL content. Please check the format.");
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message =
+          (data && (data.error || JSON.stringify(data))) ||
+          `Server generate failed: ${res.status}`;
+        setValidationError(String(message));
+        setValidating(false);
+        return;
       }
+
+      // data expected: { csv, mermaids: [{name,content}], lineage, referentialWarnings }
+      const artifacts = {
+        csv: data.csv || "",
+        mermaids: Array.isArray(data.mermaids) ? data.mermaids : [],
+        lineage: data.lineage || null,
+        referentialWarnings: data.referentialWarnings || [],
+      };
+
+      // ensure parsedData is present for preview / counts
+      mockParseDSL(dslContent);
+
+      // Navigate to DataVisualization and pass everything in navigation state
+      navigate("/data-visualization", {
+        state: {
+          projectName: projectName || "Untitled Project",
+          engine: "Postgres",
+          dslContent,
+          parsedData,
+          artifacts,
+        },
+      });
+
+    } catch (err: any) {
+      console.error("Generate request failed:", err);
+      setValidationError(
+        err?.message === "Failed to fetch"
+          ? "Unable to reach server. Is the backend running?"
+          : String(err)
+      );
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -504,7 +512,7 @@ const CreateProject = () => {
                   variant="secondary"
                   className="w-full justify-start"
                   onClick={handleDataVisualization}
-                  disabled={!dslContent || !isValidated || !isValidationPassed}
+                  disabled={!dslContent || validating || !isValidated || !isValidationPassed}
                   title={
                     !dslContent 
                       ? "Please provide DSL content first"
@@ -516,7 +524,7 @@ const CreateProject = () => {
                   }
                 >
                   <BarChart3 className="w-4 h-4 mr-2" />
-                  Data Visualization
+                  {validating ? "Generating…" : "Data Visualization"}
                 </Button>
                 
                 {/* Validation Status Indicator */}
@@ -539,7 +547,7 @@ const CreateProject = () => {
             </Card>
           </div>
 
-          {/* RIGHT PANEL */}
+          {/* RIGHT PANEL - Preview */}
           <div className="col-span-6">
             <Card className="h-full">
               <CardHeader>
@@ -561,6 +569,7 @@ const CreateProject = () => {
                         <Badge variant="secondary">Sources: {parsedData.sources}</Badge>
                       </div>
                     </div>
+
                     <div className="flex items-center gap-2 mb-4">
                       {parsedData.isValid === true ? (
                         <div className="flex items-center gap-1 text-green-600">
@@ -596,14 +605,14 @@ const CreateProject = () => {
 
                 <Separator />
 
-                {/* Validation results (AJV + Referential) */}
+                {/* Validation results */}
                 <div>
                   <h3 className="font-medium mb-3 flex items-center gap-2">
                     <Check className="w-4 h-4" />
                     Validation Results
                   </h3>
 
-                  {validating && <div className="text-sm text-muted-foreground">Validating...</div>}
+                  {validating && <div className="text-sm text-muted-foreground">Working...</div>}
 
                   {validationError && (
                     <div className="text-sm text-red-600">Error: {validationError}</div>
@@ -631,7 +640,6 @@ const CreateProject = () => {
                           )}
                         </div>
 
-                        {/* AJV errors */}
                         {ajvErrors && ajvErrors.length > 0 && (
                           <div>
                             <p className="text-sm font-medium mb-1">AJV Errors:</p>
@@ -646,7 +654,6 @@ const CreateProject = () => {
                           </div>
                         )}
 
-                        {/* Referential errors */}
                         {referentialErrors && referentialErrors.length > 0 ? (
                           <div>
                             <p className="text-sm font-medium mb-1">Referential Errors:</p>
@@ -666,7 +673,6 @@ const CreateProject = () => {
                           <div className="text-sm text-muted-foreground">No referential errors.</div>
                         )}
 
-                        {/* Warnings */}
                         {referentialWarnings && referentialWarnings.length > 0 && (
                           <div>
                             <p className="text-sm font-medium mb-1">Warnings:</p>
