@@ -138,7 +138,6 @@ function normalizeColumn(raw: any): ColumnModel {
     type: "TEXT",
     nullable: true,
     key: "-",
-    default: null,
     extra: null,
     description: null,
   };
@@ -172,7 +171,6 @@ function normalizeColumn(raw: any): ColumnModel {
     type,
     nullable,
     key,
-    default: def,
     extra,
     description,
   };
@@ -225,7 +223,6 @@ function parseTablesFromDSL(dsl: string): TableModel[] {
               type: "TEXT",
               nullable: true,
               key: "-",
-              default: null,
               extra: null,
               description: null,
             } as ColumnModel;
@@ -412,7 +409,6 @@ export const SchemaView: React.FC<SchemaViewProps> = ({ dslContent }) => {
                           <th className="text-left p-2 border-b">Data Type</th>
                           <th className="text-left p-2 border-b">Nullable</th>
                           <th className="text-left p-2 border-b">Key</th>
-                          <th className="text-left p-2 border-b">Default</th>
                           <th className="text-left p-2 border-b">Extra</th>
                           <th className="text-left p-2 border-b">Description</th>
                         </tr>
@@ -424,7 +420,6 @@ export const SchemaView: React.FC<SchemaViewProps> = ({ dslContent }) => {
                             <td className="p-2 align-top">{c.type}</td>
                             <td className="p-2 align-top">{c.nullable ? "YES" : "NO"}</td>
                             <td className="p-2 align-top">{c.key}</td>
-                            <td className="p-2 align-top">{c.default ?? "NULL"}</td>
                             <td className="p-2 align-top">{c.extra ?? "-"}</td>
                             <td className="p-2 align-top">{c.description ?? "-"}</td>
                           </tr>
