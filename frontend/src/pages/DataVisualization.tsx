@@ -374,6 +374,18 @@ const DataVisualization: React.FC = () => {
     };
   }, [mermaids, activeTab]); // re-run when mermaids or active tab changes
 
+  useEffect(() => {
+  const container = erdContainerRef.current;
+  if (!container) return;
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  svg.style.width = '100%';
+  svg.style.height = 'auto';
+  svg.style.display = 'block';
+  svg.style.maxWidth = 'none';
+  svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+}, [mermaids, activeTab]);
+
   // helper to download csv text
   const downloadCSV = () => {
     if (!csvText) return;
@@ -564,9 +576,9 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto bg-white rounded p-4">
+                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
                   {mermaids && mermaids.length > 0 ? (
-                    <div ref={erdContainerRef} id="erd-viz" />
+                    <div ref={erdContainerRef} id="erd-viz" className="w-full"/>
                   ) : parsedTables.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {parsedTables.map((t) => (
