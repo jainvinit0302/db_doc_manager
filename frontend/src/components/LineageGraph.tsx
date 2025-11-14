@@ -262,5 +262,13 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
     });
   }, [lineage, level]);
 
-  return <div ref={containerRef} className={className || "w-full h-full"} style={{ minHeight: 420 }} />;
+  // return <div ref={containerRef} className={className || "w-full h-full"} style={{ minHeight: 700 }} />;
+  return (
+  <div
+    ref={containerRef}
+    className={className || "w-full h-full"}
+    style={{ minHeight: "90vh" }}
+  />
+);
+
 }

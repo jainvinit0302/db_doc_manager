@@ -375,16 +375,42 @@ const DataVisualization: React.FC = () => {
   }, [mermaids, activeTab]); // re-run when mermaids or active tab changes
 
   useEffect(() => {
-  const container = erdContainerRef.current;
-  if (!container) return;
-  const svg = container.querySelector('svg');
-  if (!svg) return;
-  svg.style.width = '100%';
-  svg.style.height = 'auto';
-  svg.style.display = 'block';
-  svg.style.maxWidth = 'none';
-  svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-}, [mermaids, activeTab]);
+    const container = erdContainerRef.current;
+    if (!container) return;
+    const svg = container.querySelector("svg");
+    if (!svg) return;
+    svg.style.width = "100%";
+    svg.style.height = "auto";
+    svg.style.display = "block";
+    svg.style.maxWidth = "none";
+    svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+  }, [mermaids, activeTab]);
+
+  useEffect(() => {
+    // give layout a moment to become visible, then dispatch resize
+    if (!activeTab) return;
+
+    // If ERD tab: re-render mermaid if mermaids exist
+    if (activeTab === "er-diagram" && mermaids && mermaids.length > 0) {
+      setTimeout(() => {
+        setMermaids((prev) => (prev ? [...prev] : prev));
+      }, 120);
+    }
+
+    // If Lineage tab: dispatch resize so cytoscape picks up container size
+    if (activeTab === "lineage") {
+      setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 120);
+    }
+
+    // CSV / mappings: force a small reflow so table layouts pick width
+    if (activeTab === "mappings") {
+      setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 120);
+    }
+  }, [activeTab]);
 
   // helper to download csv text
   const downloadCSV = () => {
@@ -616,9 +642,10 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto">
+                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
                   {lineage ? (
-                    <LineageGraph lineage={lineage} level={lineageLevel} />
+                    // cast lineage to any here so TS won't complain (LineageGraph now accepts optional nodes/edges)
+                    <LineageGraph lineage={lineage as any} level={lineageLevel} />
                   ) : (
                     <div className="text-muted-foreground p-6">No lineage available. Generate artifacts from DSL on the project page.</div>
                   )}
@@ -638,7 +665,7 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto">
+                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
                   {csvTable ? (
                     <table className="w-full text-sm border-collapse">
                       <thead className="sticky top-0 bg-white">
