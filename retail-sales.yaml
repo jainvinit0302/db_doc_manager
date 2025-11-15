@@ -55,7 +55,15 @@ sources:
     table: orders
 
 mappings:
-  # --- Product Dimension ---
+  # ==========================================
+  # DIM_PRODUCT - ALL COLUMNS FROM mongo_products
+  # ==========================================
+  - target: dw.mart.dim_product.product_id
+    from:
+      source_id: mongo_products
+      path: $._id
+      transform: hash_to_int()
+
   - target: dw.mart.dim_product.sku
     from:
       source_id: mongo_products
@@ -79,21 +87,30 @@ mappings:
       path: $.price.amount
       transform: round(2)
 
-  - target: dw.mart.dim_product.product_id
+  - target: dw.mart.dim_product.created_at
     from:
-      rule: sequence('dim_product_seq')
+      source_id: mongo_products
+      path: $.created_timestamp
+      transform: to_timestamp()
 
-  # --- Customer Dimension ---
-  - target: dw.mart.dim_customer.email
+  # ==========================================
+  # DIM_CUSTOMER - ALL COLUMNS FROM mysql_customers
+  # ==========================================
+  - target: dw.mart.dim_customer.customer_id
     from:
       source_id: mysql_customers
-      path: $.email
-      transform: lower()
+      path: $.id
 
   - target: dw.mart.dim_customer.name
     from:
       source_id: mysql_customers
       path: $.full_name
+
+  - target: dw.mart.dim_customer.email
+    from:
+      source_id: mysql_customers
+      path: $.email
+      transform: lower()
 
   - target: dw.mart.dim_customer.signup_date
     from:
@@ -105,11 +122,9 @@ mappings:
       source_id: mysql_customers
       path: $.country
 
-  - target: dw.mart.dim_customer.customer_id
-    from:
-      rule: sequence('dim_customer_seq')
-
-  # --- Fact Sales ---
+  # ==========================================
+  # FACT_SALES - ALL COLUMNS FROM mysql_orders
+  # ==========================================
   - target: dw.mart.fact_sales.sale_id
     from:
       source_id: mysql_orders
@@ -146,3 +161,7 @@ mappings:
 notes:
   - "PII: customer.email — mask in QA and staging"
   - "Ensure dimension tables load before fact table"
+  - "Complete mappings for all columns to ensure proper lineage visualization"
+  - "mongo_products → dim_product (6 columns)"
+  - "mysql_customers → dim_customer (5 columns)"
+  - "mysql_orders → fact_sales (6 columns, with lookups to dimensions)"
