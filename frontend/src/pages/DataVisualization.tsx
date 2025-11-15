@@ -1,4 +1,4 @@
-// src/pages/DataVisualization.tsx
+// src/pages/DataVisualization.tsx - KEY CHANGE: Fixed lineage container height
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,7 +134,6 @@ const DataVisualization: React.FC = () => {
 
           const colName = props["name"] || props["column"] || "unknown";
           const colType = props["type"] || props["datatype"] || props["data_type"] || "";
-          // detect key / pk indicators
           const isPk = ["true", "1"].includes(String(props["pk"] || props["primary"] || props["is_primary"] || props["primary_key"] || "").toLowerCase())
             || (props["key"] && /pri|primary|pk/i.test(String(props["key"])));
           const key = isPk ? "PRI" : (props["key"] ? String(props["key"]) : "-");
@@ -156,12 +155,10 @@ const DataVisualization: React.FC = () => {
           let colType = "";
           let colDesc = "";
           let explicitKey = "";
-          // scan the next few lines (up to next column or table) for properties
           for (let j = i + 1; j < lines.length; j++) {
             const line = lines[j];
             const t2 = line.trim();
             const indent2 = line.length - line.trimStart().length;
-            // stop if we hit another column at same or lower indent than current column
             if (t2.startsWith("- name:") || t2 === "" || indent2 <= tableIndent) break;
 
             const mType = t2.match(/type:\s*(.+)/);
@@ -173,7 +170,6 @@ const DataVisualization: React.FC = () => {
             const d21 = t2.match(/desc:\s*(.+)/);
             if (d21 && !colDesc) colDesc = stripQuotes(d21[1].trim());
 
-            // pk / primary indicators
             const pkMatch = t2.match(/(pk|primary_key|primary|is_primary|primaryKey|key):\s*(.+)/i);
             if (pkMatch) {
               const val = pkMatch[2].trim().replace(/^"|'|,|}$/g, "");
@@ -181,7 +177,6 @@ const DataVisualization: React.FC = () => {
               else explicitKey = val;
             }
 
-            // also detect column_key or columnKey
             const colKey = t2.match(/column_key:\s*(.+)/i);
             if (colKey && !explicitKey) {
               const v = stripQuotes(colKey[1].trim());
@@ -198,7 +193,6 @@ const DataVisualization: React.FC = () => {
           continue;
         }
 
-        // simple table description capture (top-level at table indent)
         if (currentTable && indent === tableIndent && trimmed.startsWith("description:")) {
           const d = trimmed.match(/description:\s*(.+)/);
           if (d) currentTable.description = stripQuotes(d[1].trim());
@@ -212,7 +206,6 @@ const DataVisualization: React.FC = () => {
       console.error("parseDSL failed", e);
       setParsedTables([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dslContent]);
 
   // normalize lineage (ensure nodes exist)
@@ -295,91 +288,20 @@ const DataVisualization: React.FC = () => {
     };
   }, [dslContent]);
 
-  // -------------------------
-  // Convert lineage -> graph nodes/edges for other uses (kept for ER fallback)
-  // -------------------------
-  function convertLineageToGraph(l: any) {
-    const nodes: { id: string; label: string; columns?: string[] }[] = [];
-    const edges: { source: string; target: string; label?: string }[] = [];
-    if (!l) return { nodes, edges };
-
-    const tables = l.tables || l.nodes || [];
-    const seen = new Set<string>();
-
-    for (const t of tables) {
-      const id = String(t.name || t.id || t.table || t.table_name);
-      if (!seen.has(id)) {
-        seen.add(id);
-        let cols: string[] = [];
-        if (Array.isArray(t.columns)) {
-          cols = t.columns.map((c: any) => {
-            if (typeof c === "string") return c;
-            if (c && (c.name || c.column)) {
-              const n = c.name || c.column;
-              const typ = c.type || c.data_type || "";
-              return typ ? `${n} ${typ}` : String(n);
-            }
-            return JSON.stringify(c);
-          });
-        }
-        nodes.push({ id, label: id, columns: cols });
-      }
-
-      const fks = t.fks || t.foreignKeys || t.references || [];
-      for (const fk of fks) {
-        const other = fk.to_table || fk.references || fk.target_table || fk.table;
-        if (other && String(other) !== id) {
-          edges.push({ source: id, target: String(other), label: fk.from || "" });
-        }
-      }
-    }
-
-    if (Array.isArray(l.relations)) {
-      for (const r of l.relations) {
-        const a = String(r.source || r.from || r.left);
-        const b = String(r.target || r.to || r.right);
-        if (a && b && a !== b) edges.push({ source: a, target: b, label: r.label || "" });
-        if (!seen.has(a)) { seen.add(a); nodes.push({ id: a, label: a, columns: [] }); }
-        if (!seen.has(b)) { seen.add(b); nodes.push({ id: b, label: b, columns: [] }); }
-      }
-    }
-
-    return { nodes, edges };
-  }
-
-  // -------------------------
   // find table info (prefer lineage then parsed)
-  // -------------------------
   const findTable = (name: string | null) => {
     if (!name) return null;
 
     const normalizeCol = (c: any) => {
-      // unify various shapes
       const colName = c?.name || c?.column || c?.field || c?.col || String(c || "");
       const type = c?.type || c?.data_type || c?.sql_type || c?.datatype || "-";
 
-      // KEY detection enhanced: many possible fields and patterns
       const explicitKeyCandidates = [
-        c?.key,
-        c?.key_type,
-        c?.keyName,
-        c?.key_name,
-        c?.constraint,
-        c?.indexType,
-        c?.index_name,
-        c?.keyType,
-        c?.constraint_name,
-        c?.column_key,
-        c?.index,
-        c?.role,
-        c?.pk,
-        c?.primary_key,
-        c?.primary || c?.is_primary,
-        c?.isPrimary,
-        c?.is_pk,
-        c?.primaryKey,
-        c?.meta?.primary,
-        c?.meta?.is_primary,
+        c?.key, c?.key_type, c?.keyName, c?.key_name, c?.constraint,
+        c?.indexType, c?.index_name, c?.keyType, c?.constraint_name,
+        c?.column_key, c?.index, c?.role, c?.pk, c?.primary_key,
+        c?.primary || c?.is_primary, c?.isPrimary, c?.is_pk,
+        c?.primaryKey, c?.meta?.primary, c?.meta?.is_primary,
       ];
 
       let explicitKey: any = null;
@@ -392,12 +314,10 @@ const DataVisualization: React.FC = () => {
             break;
           } else {
             explicitKey = cand;
-            // continue searching for a stronger "PRI"
           }
         }
       }
 
-      // check constraints array / list (strings or objects)
       if (!explicitKey && Array.isArray(c?.constraints)) {
         const hasPri = c.constraints.some((x: any) => {
           const s = (typeof x === "string" ? x : JSON.stringify(x)).toLowerCase();
@@ -406,28 +326,20 @@ const DataVisualization: React.FC = () => {
         if (hasPri) explicitKey = "PRI";
       }
 
-      // common MySQL column_key
       if (!explicitKey && (c?.column_key || c?.Column_key)) {
         const ck = String(c.column_key || c.Column_key);
         if (ck.toLowerCase().includes("pri")) explicitKey = "PRI";
         else explicitKey = ck;
       }
 
-      // finally inferred key heuristics
       const isPrimaryExplicit = !!(c?.primary || c?.is_primary || c?.isPrimary || c?.pk || c?.primaryKey);
       const inferredKey = isPrimaryExplicit ? "PRI" : (String(colName) === "id" ? "PRI" : "-");
 
       const key = explicitKey ? String(explicitKey) : inferredKey;
 
-      // description: check typical fields and meta, also 'desc' and strip quotes
       const rawDesc = (c && (
-        c.description ||
-        c.desc ||
-        c.comment ||
-        c.notes ||
-        c.meta?.description ||
-        c.meta?.comment ||
-        c.note
+        c.description || c.desc || c.comment || c.notes ||
+        c.meta?.description || c.meta?.comment || c.note
       )) || "";
       const description = String(rawDesc).replace(/^["']|["']$/g, "");
 
@@ -439,7 +351,6 @@ const DataVisualization: React.FC = () => {
       };
     };
 
-    // Prefer lineage.tables if available
     if (lineage && Array.isArray(lineage.tables)) {
       const t = lineage.tables.find((x: any) => String(x.name || x.id || x.table || x.table_name) === name);
       if (t) {
@@ -449,12 +360,10 @@ const DataVisualization: React.FC = () => {
       }
     }
 
-    // Fallback to parsedTables (from uploaded DSL)
     const p = parsedTables.find((x) => String(x.name) === name);
     if (p) {
       const cols = (p.columns || []).map((c: any) => {
         if (typeof c === "string") return { name: c, type: "-", key: (c === "id" ? "PRI" : "-"), description: "" };
-        // the lightweight parser already stored description/key maybe
         return {
           name: c.name || c.column || "",
           type: c.type || "-",
@@ -700,10 +609,10 @@ const DataVisualization: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 p-6 overflow-auto">
-            {/* ---------------- Schema View (removed Table Relationships) ---------------- */}
+          <div className="flex-1 overflow-auto">
+            {/* Schema View */}
             {activeTab === "schema" && (
-              <div className="space-y-6">
+              <div className="p-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="col-span-1">
                     <h4 className="text-lg font-medium mb-3">Tables</h4>
@@ -790,123 +699,146 @@ const DataVisualization: React.FC = () => {
               </div>
             )}
 
-            {/* ---------------- ER Diagram (mermaid or fallback) ---------------- */}
+            {/* ER Diagram */}
             {activeTab === "er-diagram" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div />
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => {
-                      if (mermaids && mermaids.length > 0) {
-                        console.log("Mermaid content:", mermaids[0].content);
-                        alert("Mermaid content logged to console for debugging.");
-                      } else {
-                        alert("No mermaid content available.");
-                      }
-                    }}>Debug</Button>
-                  </div>
-                </div>
-
-                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
-                  {mermaids && mermaids.length > 0 ? (
-                    <div ref={erdContainerRef} id="erd-viz" className="w-full" />
-                  ) : parsedTables.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {parsedTables.map((t) => (
-                        <Card key={`fallback-${t.name}`}>
-                          <CardHeader>
-                            <CardTitle>{t.name}</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-1">
-                              {(t.columns || []).map((c: any, idx: number) => (
-                                <div key={idx} className="text-xs font-mono">
-                                  {c.name} : {c.type}
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+              <div className="p-6 h-full">
+                <div className="h-full bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => {
+                        if (mermaids && mermaids.length > 0) {
+                          console.log("Mermaid content:", mermaids[0].content);
+                          alert("Mermaid content logged to console for debugging.");
+                        } else {
+                          alert("No mermaid content available.");
+                        }
+                      }}>Debug</Button>
                     </div>
-                  ) : (
-                    <div className="text-muted-foreground">No ERD available</div>
-                  )}
+                  </div>
+
+                  <div className="h-[calc(100%-3rem)] overflow-auto bg-white rounded p-4">
+                    {mermaids && mermaids.length > 0 ? (
+                      <div ref={erdContainerRef} id="erd-viz" className="w-full" />
+                    ) : parsedTables.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {parsedTables.map((t) => (
+                          <Card key={`fallback-${t.name}`}>
+                            <CardHeader>
+                              <CardTitle>{t.name}</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1">
+                                {(t.columns || []).map((c: any, idx: number) => (
+                                  <div key={idx} className="text-xs font-mono">
+                                    {c.name} : {c.type}
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">No ERD available</div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* ---------------- Lineage ---------------- */}
+            {/* Lineage - FIXED HEIGHT */}
             {activeTab === "lineage" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div />
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant={lineageLevel === "table" ? "secondary" : "outline"} onClick={() => setLineageLevel("table")}>Table-level</Button>
-                    <Button size="sm" variant={lineageLevel === "column" ? "secondary" : "outline"} onClick={() => setLineageLevel("column")}>Column-level</Button>
+              <div className="h-full p-6">
+                <div className="h-full flex flex-col bg-card border border-border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border-b">
+                    <div />
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm" 
+                        variant={lineageLevel === "table" ? "secondary" : "outline"} 
+                        onClick={() => setLineageLevel("table")}
+                      >
+                        Table-level
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={lineageLevel === "column" ? "secondary" : "outline"} 
+                        onClick={() => setLineageLevel("column")}
+                      >
+                        Column-level
+                      </Button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
-                  {lineage ? (
-                    <LineageGraph lineage={lineage as any} level={lineageLevel} />
-                  ) : (
-                    <div className="text-muted-foreground p-6">No lineage available. Generate artifacts from DSL on the project page.</div>
-                  )}
+                  <div className="flex-1 min-h-0">
+                    {lineage ? (
+                      <LineageGraph lineage={lineage as any} level={lineageLevel} />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-muted-foreground p-6">
+                          <div className="text-4xl mb-4">🔄</div>
+                          <p className="text-lg font-medium">No lineage available</p>
+                          <p className="text-sm mt-2">Generate artifacts from DSL on the project page.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* ---------------- Mappings ---------------- */}
+            {/* Mappings */}
             {activeTab === "mappings" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div />
-                  <div>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      if (!csvText) return;
-                      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "mapping_matrix.csv";
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      URL.revokeObjectURL(url);
-                    }} disabled={!csvText}>
-                      Download CSV
-                    </Button>
+              <div className="p-6 h-full">
+                <div className="h-full bg-card border border-border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border-b">
+                    <div />
+                    <div>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        if (!csvText) return;
+                        const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "mapping_matrix.csv";
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                      }} disabled={!csvText}>
+                        Download CSV
+                      </Button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex-1 min-h-[60vh] overflow-auto bg-white rounded p-4">
-                  {csvTable ? (
-                    <table className="w-full text-sm border-collapse">
-                      <thead className="sticky top-0 bg-white">
-                        <tr>
-                          {csvTable.headers.map((h, i) => (
-                            <th key={i} className="text-left p-2 border-b">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {csvTable.body.map((r, ri) => (
-                          <tr key={ri} className={ri % 2 === 0 ? "" : "bg-muted/10"}>
-                            {r.map((c: any, ci: number) => (
-                              <td key={ci} className="p-2 align-top">{c}</td>
+                  <div className="h-[calc(100%-4rem)] overflow-auto bg-white rounded-b p-4">
+                    {csvTable ? (
+                      <table className="w-full text-sm border-collapse">
+                        <thead className="sticky top-0 bg-white">
+                          <tr>
+                            {csvTable.headers.map((h, i) => (
+                              <th key={i} className="text-left p-2 border-b">{h}</th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="text-muted-foreground p-6">No mapping CSV available.</div>
-                  )}
+                        </thead>
+                        <tbody>
+                          {csvTable.body.map((r, ri) => (
+                            <tr key={ri} className={ri % 2 === 0 ? "" : "bg-muted/10"}>
+                              {r.map((c: any, ci: number) => (
+                                <td key={ci} className="p-2 align-top">{c}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="text-muted-foreground p-6">No mapping CSV available.</div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
-
           </div>
         </div>
       </div>

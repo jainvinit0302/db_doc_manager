@@ -1,0 +1,315 @@
+project: retail_dw_relational
+owners: [ "data-eng@company.com" ]
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: mart
+    tables:
+      # -------------------
+      # DIMENSIONS
+      # -------------------
+      - name: dim_customer
+        columns:
+          - { name: customer_id, type: INTEGER, pk: true }
+          - { name: customer_name, type: VARCHAR(128) }
+          - { name: region_id, type: INTEGER, fk: { table: "dim_region", column: "region_id" } }
+          - { name: segment_id, type: INTEGER, fk: { table: "dim_segment", column: "segment_id" } }
+
+      - name: dim_product
+        columns:
+          - { name: product_id, type: INTEGER, pk: true }
+          - { name: product_name, type: VARCHAR(128) }
+          - { name: category_id, type: INTEGER, fk: { table: "dim_category", column: "category_id" } }
+          - { name: supplier_id, type: INTEGER, fk: { table: "dim_supplier", column: "supplier_id" } }
+
+      - name: dim_store
+        columns:
+          - { name: store_id, type: INTEGER, pk: true }
+          - { name: store_name, type: VARCHAR(128) }
+          - { name: region_id, type: INTEGER, fk: { table: "dim_region", column: "region_id" } }
+          - { name: manager_id, type: INTEGER, fk: { table: "dim_employee", column: "employee_id" } }
+
+      - name: dim_employee
+        columns:
+          - { name: employee_id, type: INTEGER, pk: true }
+          - { name: emp_name, type: VARCHAR(128) }
+          - { name: supervisor_id, type: INTEGER, fk: { table: "dim_employee", column: "employee_id" } }
+          - { name: store_id, type: INTEGER, fk: { table: "dim_store", column: "store_id" } }
+
+      - name: dim_region
+        columns:
+          - { name: region_id, type: INTEGER, pk: true }
+          - { name: region_name, type: VARCHAR(64) }
+
+      - name: dim_segment
+        columns:
+          - { name: segment_id, type: INTEGER, pk: true }
+          - { name: segment_name, type: VARCHAR(64) }
+
+      - name: dim_category
+        columns:
+          - { name: category_id, type: INTEGER, pk: true }
+          - { name: category_name, type: VARCHAR(64) }
+
+      - name: dim_supplier
+        columns:
+          - { name: supplier_id, type: INTEGER, pk: true }
+          - { name: supplier_name, type: VARCHAR(128) }
+
+      # -------------------
+      # BRIDGE TABLE (n:m)
+      # -------------------
+      - name: bridge_product_supplier
+        description: many-to-many mapping of products and suppliers
+        columns:
+          - { name: product_id, type: INTEGER, fk: { table: "dim_product", column: "product_id" } }
+          - { name: supplier_id, type: INTEGER, fk: { table: "dim_supplier", column: "supplier_id" } }
+
+      # -------------------
+      # FACT TABLE
+      # -------------------
+      - name: fact_sales
+        columns:
+          - { name: sale_id, type: BIGINT, pk: true }
+          - { name: date_id, type: INTEGER }
+          - { name: customer_id, type: INTEGER, fk: { table: "dim_customer", column: "customer_id" } }
+          - { name: product_id, type: INTEGER, fk: { table: "dim_product", column: "product_id" } }
+          - { name: store_id, type: INTEGER, fk: { table: "dim_store", column: "store_id" } }
+          - { name: employee_id, type: INTEGER, fk: { table: "dim_employee", column: "employee_id" } }
+          - { name: quantity, type: INTEGER }
+          - { name: total_amount, type: DECIMAL(12,2) }
+
+# -------------------
+# SOURCES
+# -------------------
+sources:
+  - id: mysql_customers
+    kind: mysql
+    conn: crm-prod
+    db: customers
+    table: customer_master
+
+  - id: mysql_products
+    kind: mysql
+    conn: product-db
+    db: catalog
+    table: products
+
+  - id: mysql_sales
+    kind: mysql
+    conn: sales-prod
+    db: orders
+    table: fact_sales_raw
+
+# -------------------
+# COMPREHENSIVE MAPPINGS
+# -------------------
+mappings:
+  # ======================
+  # DIM_CUSTOMER MAPPINGS
+  # ======================
+  - target: dw.mart.dim_customer.customer_id
+    from:
+      source_id: mysql_customers
+      path: $.customer_id
+
+  - target: dw.mart.dim_customer.customer_name
+    from:
+      source_id: mysql_customers
+      path: $.name
+
+  - target: dw.mart.dim_customer.region_id
+    from:
+      source_id: mysql_customers
+      path: $.region_id
+
+  - target: dw.mart.dim_customer.segment_id
+    from:
+      source_id: mysql_customers
+      path: $.segment_id
+
+  # ======================
+  # DIM_PRODUCT MAPPINGS
+  # ======================
+  - target: dw.mart.dim_product.product_id
+    from:
+      source_id: mysql_products
+      path: $.product_id
+
+  - target: dw.mart.dim_product.product_name
+    from:
+      source_id: mysql_products
+      path: $.name
+
+  - target: dw.mart.dim_product.category_id
+    from:
+      source_id: mysql_products
+      path: $.category_id
+
+  - target: dw.mart.dim_product.supplier_id
+    from:
+      source_id: mysql_products
+      path: $.supplier_id
+
+  # ======================
+  # FACT_SALES MAPPINGS
+  # ======================
+  - target: dw.mart.fact_sales.sale_id
+    from:
+      source_id: mysql_sales
+      path: $.sale_id
+
+  - target: dw.mart.fact_sales.date_id
+    from:
+      source_id: mysql_sales
+      path: $.sale_date
+
+  - target: dw.mart.fact_sales.customer_id
+    from:
+      source_id: mysql_sales
+      path: $.customer_id
+
+  - target: dw.mart.fact_sales.product_id
+    from:
+      source_id: mysql_sales
+      path: $.product_id
+
+  - target: dw.mart.fact_sales.store_id
+    from:
+      source_id: mysql_sales
+      path: $.store_id
+
+  - target: dw.mart.fact_sales.employee_id
+    from:
+      source_id: mysql_sales
+      path: $.employee_id
+
+  - target: dw.mart.fact_sales.quantity
+    from:
+      source_id: mysql_sales
+      path: $.quantity
+
+  - target: dw.mart.fact_sales.total_amount
+    from:
+      source_id: mysql_sales
+      path: $.amount
+
+  # ======================
+  # DIM_STORE MAPPINGS
+  # ======================
+  - target: dw.mart.dim_store.store_id
+    from:
+      source_id: mysql_sales
+      path: $.store_id
+
+  - target: dw.mart.dim_store.store_name
+    from:
+      source_id: mysql_sales
+      path: $.store_name
+
+  - target: dw.mart.dim_store.region_id
+    from:
+      source_id: mysql_sales
+      path: $.store_region_id
+
+  - target: dw.mart.dim_store.manager_id
+    from:
+      source_id: mysql_sales
+      path: $.manager_id
+
+  # ======================
+  # DIM_EMPLOYEE MAPPINGS
+  # ======================
+  - target: dw.mart.dim_employee.employee_id
+    from:
+      source_id: mysql_sales
+      path: $.employee_id
+
+  - target: dw.mart.dim_employee.emp_name
+    from:
+      source_id: mysql_sales
+      path: $.employee_name
+
+  - target: dw.mart.dim_employee.supervisor_id
+    from:
+      source_id: mysql_sales
+      path: $.supervisor_id
+
+  - target: dw.mart.dim_employee.store_id
+    from:
+      source_id: mysql_sales
+      path: $.emp_store_id
+
+  # ======================
+  # DIM_REGION MAPPINGS
+  # ======================
+  - target: dw.mart.dim_region.region_id
+    from:
+      source_id: mysql_customers
+      path: $.region_id
+
+  - target: dw.mart.dim_region.region_name
+    from:
+      source_id: mysql_customers
+      path: $.region_name
+
+  # ======================
+  # DIM_SEGMENT MAPPINGS
+  # ======================
+  - target: dw.mart.dim_segment.segment_id
+    from:
+      source_id: mysql_customers
+      path: $.segment_id
+
+  - target: dw.mart.dim_segment.segment_name
+    from:
+      source_id: mysql_customers
+      path: $.segment_name
+
+  # ======================
+  # DIM_CATEGORY MAPPINGS
+  # ======================
+  - target: dw.mart.dim_category.category_id
+    from:
+      source_id: mysql_products
+      path: $.category_id
+
+  - target: dw.mart.dim_category.category_name
+    from:
+      source_id: mysql_products
+      path: $.category_name
+
+  # ======================
+  # DIM_SUPPLIER MAPPINGS
+  # ======================
+  - target: dw.mart.dim_supplier.supplier_id
+    from:
+      source_id: mysql_products
+      path: $.supplier_id
+
+  - target: dw.mart.dim_supplier.supplier_name
+    from:
+      source_id: mysql_products
+      path: $.supplier_name
+
+  # ======================
+  # BRIDGE_PRODUCT_SUPPLIER MAPPINGS
+  # ======================
+  - target: dw.mart.bridge_product_supplier.product_id
+    from:
+      source_id: mysql_products
+      path: $.product_id
+
+  - target: dw.mart.bridge_product_supplier.supplier_id
+    from:
+      source_id: mysql_products
+      path: $.supplier_id
+
+notes:
+  - "Complete mappings for all tables in the data warehouse"
+  - "Shows proper lineage from 3 sources to 10 target tables"
+  - "mysql_customers feeds: dim_customer, dim_region, dim_segment"
+  - "mysql_products feeds: dim_product, dim_category, dim_supplier, bridge_product_supplier"
+  - "mysql_sales feeds: fact_sales, dim_store, dim_employee"
+
