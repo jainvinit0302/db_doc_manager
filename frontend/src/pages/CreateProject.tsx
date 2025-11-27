@@ -67,6 +67,11 @@ const CreateProject = () => {
       updateProjectName(location.state.defaultName);
       setEditing(true); // New projects start in edit mode
     }
+
+    // Restore editing state if returning from visualization
+    if (location.state?.isEditing !== undefined) {
+      setEditing(location.state.isEditing);
+    }
   }, [location.state]);
 
   // Debug: Log context state on mount and when it changes

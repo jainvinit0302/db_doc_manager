@@ -43,6 +43,7 @@ const DataVisualization: React.FC = () => {
   const dslContent = (location.state as any)?.dslContent || "";
   const projectName = (location.state as any)?.projectName || "Untitled Project";
   const uploadedFileName = (location.state as any)?.uploadedFileName || "";
+  const isEditing = (location.state as any)?.isEditing || false;
 
   const [activeTab, setActiveTab] = useState("er-diagram");
   const [parsedTables, setParsedTables] = useState<any[]>([]);
@@ -411,7 +412,7 @@ const DataVisualization: React.FC = () => {
               size="sm"
               onClick={() =>
                 navigate("/create-project", {
-                  state: { projectName, dslContent, uploadedFileName },
+                  state: { projectName, dslContent, uploadedFileName, isEditing },
                 })
               }
             >

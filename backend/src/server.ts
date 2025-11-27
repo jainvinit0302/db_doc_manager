@@ -277,6 +277,16 @@ app.post("/api/validate", (req, res) => {
           ? (req.body as any).yaml
           : null;
 
+    // Pre-process YAML to fix unquoted types with commas (e.g. DECIMAL(10,2))
+    if (yamlText) {
+      // Regex to find "type: TYPE(X,Y)" and quote it as "type: 'TYPE(X,Y)'"
+      // This handles the specific case where the comma breaks the flow-style object
+      const fixed = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+      // Also handle cases where it might be inside a flow object like { name: x, type: DECIMAL(10,2) }
+      // The previous regex works for simple cases, but let's be careful.
+      // Actually, simply quoting the value if it looks like a function call with args works best.
+    }
+
     if (!yamlText) {
       return res
         .status(400)
@@ -285,7 +295,9 @@ app.post("/api/validate", (req, res) => {
 
     let parsed: any;
     try {
-      parsed = YAML.load(yamlText);
+      // Fix unquoted types with commas
+      const fixedYaml = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+      parsed = YAML.load(fixedYaml);
     } catch (e: any) {
       return res
         .status(400)
@@ -339,7 +351,9 @@ app.post("/api/generate", (req, res) => {
 
     let parsed: any;
     try {
-      parsed = YAML.load(yamlText);
+      // Fix unquoted types with commas
+      const fixedYaml = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+      parsed = YAML.load(fixedYaml);
     } catch (e: any) {
       return res
         .status(400)

@@ -79,8 +79,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 return {
                     ...initialState,
                     ...parsed,
-                    // Always start in read-only mode for safety after refresh
-                    isEditing: false,
                     lastSaved: parsed.lastSaved ? new Date(parsed.lastSaved) : null,
                 };
             }
