@@ -101,6 +101,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     // Actions
     const loadProject: ProjectActions['loadProject'] = (data) => {
+        console.log('📦 loadProject called with data:', {
+            projectId: data.projectId,
+            hasMetadata: !!data.metadata,
+            metadata: data.metadata
+        });
+
         setState({
             projectId: data.projectId,
             projectName: data.projectName,
@@ -114,6 +120,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             parsedData: data.metadata?.parsedData ?? null,
             isDirty: false,
             lastSaved: data.metadata?.lastValidated ? new Date(data.metadata.lastValidated) : null,
+        });
+
+        console.log('✅ Project loaded into context:', {
+            isValidated: data.metadata?.isValidated ?? false,
+            isValidationPassed: data.metadata?.isValidationPassed ?? false
         });
     };
 

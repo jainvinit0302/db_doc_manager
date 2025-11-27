@@ -69,6 +69,18 @@ const CreateProject = () => {
     }
   }, [location.state]);
 
+  // Debug: Log context state on mount and when it changes
+  useEffect(() => {
+    console.log('🔍 CreateProject context state:', {
+      projectId,
+      isValidated,
+      isValidationPassed,
+      parsedData: parsedData ? 'present' : 'null',
+      isEditing,
+      isDirty
+    });
+  }, [projectId, isValidated, isValidationPassed, isEditing]);
+
   // Local UI state (not part of global context)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -325,6 +337,16 @@ const CreateProject = () => {
       const url = projectId ? `/api/projects/${projectId}` : "/api/projects";
       const method = projectId ? "PUT" : "POST";
 
+      const metadataToSave = {
+        isValidated,
+        isValidationPassed,
+        validationResult,
+        parsedData,
+        lastValidated: new Date().toISOString(),
+      };
+
+      console.log('💾 Saving project with metadata:', metadataToSave);
+
       const response = await fetch(url, {
         method: method,
         headers: {
@@ -334,13 +356,7 @@ const CreateProject = () => {
         body: JSON.stringify({
           name: projectName,
           dslContent: dslContent,
-          metadata: {
-            isValidated,
-            isValidationPassed,
-            validationResult,
-            parsedData,
-            lastValidated: new Date().toISOString(),
-          },
+          metadata: metadataToSave,
         }),
       });
 
@@ -550,6 +566,21 @@ const CreateProject = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Banner for old projects without metadata */}
+                {projectId && !isEditing && !isValidated && (
+                  <div className="p-3 rounded-lg border bg-blue-50 border-blue-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">
+                        One-Time Validation Needed
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-700">
+                      This project was saved before validation caching was enabled. Click "Edit Project" and validate once to enable instant visualization access in the future.
+                    </p>
+                  </div>
+                )}
+
                 {/* Validation Status Display - Shows in sidebar */}
                 {isValidated && (
                   <div className={`p-3 rounded-lg border ${isValidationPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
@@ -560,13 +591,13 @@ const CreateProject = () => {
                         <AlertCircle className="w-4 h-4 text-red-600" />
                       )}
                       <span className={`text-sm font-medium ${isValidationPassed ? 'text-green-800' : 'text-red-800'}`}>
-                        {isValidationPassed ? 'Validation Passed' : 'Validation Failed'}
+                        {isValidationPassed ? 'Validation Passed ✓' : 'Validation Failed ✗'}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className={`text-xs ${isValidationPassed ? 'text-green-700' : 'text-red-700'}`}>
                       {isValidationPassed
-                        ? 'Ready for visualization and deployment'
-                        : 'Please fix errors before proceeding'}
+                        ? 'This project is valid and ready for visualization'
+                        : 'This project contains validation errors. Click "Edit Project" to fix errors and re-validate.'}
                     </p>
                   </div>
                 )}
@@ -628,23 +659,33 @@ const CreateProject = () => {
                   </>
                 )}
 
-                {/* Data Visualization button - Show for valid projects (even in read-only) */}
+                {/* Data Visualization button - Show for valid projects (read-only or editing) */}
                 {isValidated && isValidationPassed && (
                   <Button
                     variant="secondary"
-                    className="w-full justify-start"
+                    className="w-full justify-start bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
                     onClick={handleDataVisualization}
                     disabled={!dslContent || validating}
                   >
                     <BarChart3 className="w-4 h-4 mr-2" />
-                    {validating ? "Generating…" : "Data Visualization"}
+                    {validating ? "Generating…" : "View Visualizations"}
                   </Button>
                 )}
 
-                {/* Help text for when validation is needed */}
+                {/* Help text based on project state */}
                 {!isValidated && dslContent && (!projectId || isEditing) && (
-                  <div className="text-xs text-center text-muted-foreground p-2 bg-muted/50 rounded">
-                    Click "Validate DSL" to check for errors
+                  <div className="text-xs text-center text-muted-foreground p-2 bg-amber-50 border border-amber-200 rounded">
+                    ⚠️ Click "Validate DSL" first to check for errors
+                  </div>
+                )}
+
+                {/* Note for invalid projects in read-only mode */}
+                {projectId && !isEditing && isValidated && !isValidationPassed && (
+                  <div className="text-xs text-center p-3 bg-red-50 border border-red-200 rounded">
+                    <p className="text-red-800 font-medium mb-1">⚠️ Validation Required</p>
+                    <p className="text-red-700">
+                      This project is not valid. Please edit and fix validation errors before accessing visualizations.
+                    </p>
                   </div>
                 )}
               </CardContent>

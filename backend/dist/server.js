@@ -100,13 +100,24 @@ app.get("/api/auth/me", auth_1.authMiddleware, (req, res) => {
 // POST /api/projects - Create project
 app.post("/api/projects", auth_1.authMiddleware, (req, res) => {
     try {
-        const { name, dslContent } = req.body;
+        const { name, dslContent, metadata } = req.body;
         if (!name || !dslContent) {
             return res.status(400).json({ error: "Project name and DSL content are required" });
         }
-        const result = db_1.default.prepare("INSERT INTO projects (user_id, name, dsl_content) VALUES (?, ?, ?)").run(req.user.userId, name, dslContent);
+        // Serialize metadata to JSON string if provided
+        const metadataJson = metadata ? JSON.stringify(metadata) : null;
+        const result = db_1.default.prepare("INSERT INTO projects (user_id, name, dsl_content, metadata) VALUES (?, ?, ?, ?)").run(req.user.userId, name, dslContent, metadataJson);
         const projectId = result.lastInsertRowid;
-        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, created_at, updated_at FROM projects WHERE id = ?").get(projectId);
+        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, metadata, created_at, updated_at FROM projects WHERE id = ?").get(projectId);
+        // Parse metadata back to object
+        if (project && project.metadata) {
+            try {
+                project.metadata = JSON.parse(project.metadata);
+            }
+            catch (e) {
+                project.metadata = null;
+            }
+        }
         return res.status(201).json({ project });
     }
     catch (error) {
@@ -129,9 +140,18 @@ app.get("/api/projects", auth_1.authMiddleware, (req, res) => {
 app.get("/api/projects/:id", auth_1.authMiddleware, (req, res) => {
     try {
         const projectId = parseInt(req.params.id);
-        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, created_at, updated_at FROM projects WHERE id = ? AND user_id = ?").get(projectId, req.user.userId);
+        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, metadata, created_at, updated_at FROM projects WHERE id = ? AND user_id = ?").get(projectId, req.user.userId);
         if (!project) {
             return res.status(404).json({ error: "Project not found" });
+        }
+        // Parse metadata from JSON string
+        if (project.metadata) {
+            try {
+                project.metadata = JSON.parse(project.metadata);
+            }
+            catch (e) {
+                project.metadata = null;
+            }
         }
         return res.json({ project });
     }
@@ -144,15 +164,26 @@ app.get("/api/projects/:id", auth_1.authMiddleware, (req, res) => {
 app.put("/api/projects/:id", auth_1.authMiddleware, (req, res) => {
     try {
         const projectId = parseInt(req.params.id);
-        const { name, dslContent } = req.body;
+        const { name, dslContent, metadata } = req.body;
         // Verify project belongs to user
         const existing = db_1.default.prepare("SELECT id FROM projects WHERE id = ? AND user_id = ?").get(projectId, req.user.userId);
         if (!existing) {
             return res.status(404).json({ error: "Project not found" });
         }
+        // Serialize metadata to JSON string if provided
+        const metadataJson = metadata ? JSON.stringify(metadata) : null;
         // Update project
-        db_1.default.prepare("UPDATE projects SET name = ?, dsl_content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(name || null, dslContent || null, projectId);
-        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, created_at, updated_at FROM projects WHERE id = ?").get(projectId);
+        db_1.default.prepare("UPDATE projects SET name = ?, dsl_content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(name || null, dslContent || null, metadataJson, projectId);
+        const project = db_1.default.prepare("SELECT id, user_id, name, dsl_content, metadata, created_at, updated_at FROM projects WHERE id = ?").get(projectId);
+        // Parse metadata back to object
+        if (project && project.metadata) {
+            try {
+                project.metadata = JSON.parse(project.metadata);
+            }
+            catch (e) {
+                project.metadata = null;
+            }
+        }
         return res.json({ project });
     }
     catch (error) {
