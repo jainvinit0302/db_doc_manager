@@ -29,7 +29,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import mermaid from "mermaid";
 
 type LineageShape = {
-  nodes?: any[];
+  nodes: any[];
   edges?: any[];
   table_edges?: any[];
   [k: string]: any;
@@ -655,8 +655,8 @@ const DataVisualization: React.FC = () => {
                           key={d}
                           onClick={() => setActiveDialect(d)}
                           className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${activeDialect === d
-                              ? "bg-background shadow-sm text-foreground"
-                              : "text-muted-foreground hover:text-foreground"
+                            ? "bg-background shadow-sm text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
                           {d === "sql" ? "SQL" : d.charAt(0).toUpperCase() + d.slice(1)}
