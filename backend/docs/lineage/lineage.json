@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    {
+      "id": "src:mongo_users",
+      "type": "source",
+      "label": "mongo_users",
+      "meta": {
+        "id": "mongo_users",
+        "kind": "mongodb",
+        "conn": "atlas-cluster-A",
+        "db": "shop",
+        "collection": "users"
+      }
+    },
+    {
+      "id": "t:dw.mart.dim_user",
+      "type": "table",
+      "label": "dw.mart.dim_user",
+      "meta": {
+        "db": "dw",
+        "schema": "mart",
+        "table": "dim_user"
+      }
+    },
+    {
+      "id": "t:dw.mart.dim_user.user_id",
+      "type": "column",
+      "label": "user_id",
+      "meta": {
+        "name": "user_id",
+        "type": "INTEGER",
+        "pk": true,
+        "description": "Surrogate key",
+        "table": "dw.mart.dim_user"
+      }
+    },
+    {
+      "id": "t:dw.mart.dim_user.email",
+      "type": "column",
+      "label": "email",
+      "meta": {
+        "name": "email",
+        "type": "VARCHAR(320)",
+        "unique": true,
+        "not_null": true,
+        "description": "User email (PII)",
+        "table": "dw.mart.dim_user"
+      }
+    },
+    {
+      "id": "t:dw.mart.dim_user.address_street",
+      "type": "column",
+      "label": "address_street",
+      "meta": {
+        "name": "address_street",
+        "type": "VARCHAR(256)",
+        "table": "dw.mart.dim_user"
+      }
+    },
+    {
+      "id": "t:dw.mart.dim_user.created_at",
+      "type": "column",
+      "label": "created_at",
+      "meta": {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "default": "now()",
+        "table": "dw.mart.dim_user"
+      }
+    },
+    {
+      "id": "src:mongo_users:$.contact.email",
+      "type": "source_column",
+      "label": "$.contact.email",
+      "meta": {
+        "source_id": "mongo_users",
+        "path": "$.contact.email"
+      }
+    },
+    {
+      "id": "src:mongo_users:$.address.street",
+      "type": "source_column",
+      "label": "$.address.street",
+      "meta": {
+        "source_id": "mongo_users",
+        "path": "$.address.street"
+      }
+    },
+    {
+      "id": "rule:sequence('dim_user_seq')",
+      "type": "rule",
+      "label": "sequence('dim_user_seq')",
+      "meta": {
+        "rule": "sequence('dim_user_seq')"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "src:mongo_users:$.contact.email",
+      "target": "t:dw.mart.dim_user.email",
+      "type": "column_lineage",
+      "meta": {
+        "transform": "lower()",
+        "rule": null,
+        "raw": "dw.mart.dim_user.email"
+      }
+    },
+    {
+      "id": "e2",
+      "source": "src:mongo_users:$.address.street",
+      "target": "t:dw.mart.dim_user.address_street",
+      "type": "column_lineage",
+      "meta": {
+        "transform": null,
+        "rule": null,
+        "raw": "dw.mart.dim_user.address_street"
+      }
+    },
+    {
+      "id": "e3",
+      "source": "rule:sequence('dim_user_seq')",
+      "target": "t:dw.mart.dim_user.user_id",
+      "type": "column_lineage",
+      "meta": {
+        "rule": "sequence('dim_user_seq')"
+      }
+    }
+  ],
+  "table_edges": [
+    {
+      "id": "te1",
+      "source": "src:mongo_users",
+      "target": "t:dw.mart.dim_user",
+      "meta": {
+        "columns": [
+          "email",
+          "address_street"
+        ]
+      }
+    },
+    {
+      "id": "te2",
+      "source": "rule:sequence('dim_user_seq')",
+      "target": "t:dw.mart.dim_user",
+      "meta": {
+        "columns": [
+          "user_id"
+        ]
+      }
+    }
+  ]
+}

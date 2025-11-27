@@ -1,0 +1,4 @@
+target_db,target_schema,target_table,target_column,target_type,source_id,source_path,transform,default,mapping_rule,notes
+dw,mart,dim_user,email,VARCHAR(320),mongo_users,$.contact.email,lower(),,,
+dw,mart,dim_user,address_street,VARCHAR(256),mongo_users,$.address.street,,,,
+dw,mart,dim_user,user_id,INTEGER,,,,,sequence('dim_user_seq'),

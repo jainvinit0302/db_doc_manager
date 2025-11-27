@@ -1,0 +1,148 @@
+project: retail_dw_sales
+owners: [ "data-eng@company.com", "analytics@company.com" ]
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: mart
+    tables:
+      - name: dim_product
+        description: Master product dimension
+        columns:
+          - { name: product_id, type: INTEGER, pk: true, description: Surrogate key }
+          - { name: sku, type: VARCHAR(64), unique: true, not_null: true }
+          - { name: product_name, type: VARCHAR(256), not_null: true }
+          - { name: category, type: VARCHAR(128) }
+          - { name: price, type: DECIMAL(10,2) }
+          - { name: created_at, type: TIMESTAMP, default: now() }
+
+      - name: dim_customer
+        description: Master customer dimension
+        columns:
+          - { name: customer_id, type: INTEGER, pk: true }
+          - { name: name, type: VARCHAR(256) }
+          - { name: email, type: VARCHAR(320), unique: true, not_null: true }
+          - { name: signup_date, type: DATE }
+          - { name: country, type: VARCHAR(64) }
+
+      - name: fact_sales
+        description: Fact table storing all transactions
+        columns:
+          - { name: sale_id, type: BIGINT, pk: true }
+          - { name: product_id, type: INTEGER, fk: { table: "dim_product", column: "product_id" } }
+          - { name: customer_id, type: INTEGER, fk: { table: "dim_customer", column: "customer_id" } }
+          - { name: quantity, type: INTEGER }
+          - { name: total_amount, type: DECIMAL(12,2) }
+          - { name: sale_date, type: DATE }
+
+sources:
+  - id: mongo_products
+    kind: mongodb
+    conn: atlas-cluster-B
+    db: inventory
+    collection: products
+
+  - id: mysql_customers
+    kind: mysql
+    conn: crm-prod
+    db: customer_db
+    table: customers
+
+  - id: mysql_orders
+    kind: mysql
+    conn: sales-prod
+    db: order_db
+    table: orders
+
+mappings:
+  # --- Product Dimension ---
+  - target: dw.mart.dim_product.sku
+    from:
+      source_id: mongo_products
+      path: $.sku
+
+  - target: dw.mart.dim_product.product_name
+    from:
+      source_id: mongo_products
+      path: $.name
+      transform: trim()
+
+  - target: dw.mart.dim_product.category
+    from:
+      source_id: mongo_products
+      path: $.category.name
+      transform: upper()
+
+  - target: dw.mart.dim_product.price
+    from:
+      source_id: mongo_products
+      path: $.price.amount
+      transform: round(2)
+
+  - target: dw.mart.dim_product.product_id
+    from:
+      rule: sequence('dim_product_seq')
+
+  # --- Customer Dimension ---
+  - target: dw.mart.dim_customer.email
+    from:
+      source_id: mysql_customers
+      path: $.email
+      transform: lower()
+
+  - target: dw.mart.dim_customer.name
+    from:
+      source_id: mysql_customers
+      path: $.full_name
+
+  - target: dw.mart.dim_customer.signup_date
+    from:
+      source_id: mysql_customers
+      path: $.created_on
+
+  - target: dw.mart.dim_customer.country
+    from:
+      source_id: mysql_customers
+      path: $.country
+
+  - target: dw.mart.dim_customer.customer_id
+    from:
+      rule: sequence('dim_customer_seq')
+
+  # --- Fact Sales ---
+  - target: dw.mart.fact_sales.sale_id
+    from:
+      source_id: mysql_orders
+      path: $.id
+
+  - target: dw.mart.fact_sales.product_id
+    from:
+      source_id: mysql_orders
+      path: $.product_sku
+      transform: lookup('dw.mart.dim_product', 'sku', 'product_id')
+
+  - target: dw.mart.fact_sales.customer_id
+    from:
+      source_id: mysql_orders
+      path: $.customer_email
+      transform: lookup('dw.mart.dim_customer', 'email', 'customer_id')
+
+  - target: dw.mart.fact_sales.quantity
+    from:
+      source_id: mysql_orders
+      path: $.quantity
+
+  - target: dw.mart.fact_sales.total_amount
+    from:
+      source_id: mysql_orders
+      path: $.unit_price
+      transform: multiply($.quantity)
+
+  - target: dw.mart.fact_sales.sale_date
+    from:
+      source_id: mysql_orders
+      path: $.order_date
+
+notes:
+  - "PII: customer.email — mask in QA and staging"
+  - "Ensure dimension tables load before fact table"
