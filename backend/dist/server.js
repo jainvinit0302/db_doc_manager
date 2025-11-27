@@ -12,6 +12,7 @@ const js_yaml_1 = __importDefault(require("js-yaml"));
 const cors_1 = __importDefault(require("cors"));
 const parser_1 = require("./parser");
 const generator_1 = require("./generator");
+const sql_generator_1 = require("./sql_generator");
 const validator_1 = require("./validator");
 const db_1 = __importDefault(require("./db"));
 const auth_1 = require("./auth");
@@ -331,11 +332,21 @@ app.post("/api/generate", (req, res) => {
             console.error("Lineage generation error:", errLine);
             lineage = null;
         }
+        // Generate SQL Dialects
+        let sql = {};
+        try {
+            sql = (0, sql_generator_1.generateDialects)(ast);
+        }
+        catch (errSql) {
+            console.error("SQL generation error:", errSql);
+            sql = { error: errSql.message };
+        }
         // Respond with all artifacts
         return res.json({
             csv,
             mermaids: mermaidFiles,
             lineage,
+            sql, // This is now an object { postgres, snowflake, mongodb }
             referentialWarnings: refWarnings,
         });
     }

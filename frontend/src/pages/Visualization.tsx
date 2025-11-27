@@ -16,7 +16,7 @@ import {
 import LineageGraph from "@/components/LineageGraph";
 import ERDView from "@/components/ERDView";
 
-type TabKey = "schema" | "erd" | "lineage" | "mapping";
+type TabKey = "schema" | "erd" | "lineage" | "mapping" | "sql";
 
 const ZOOM_STEP = 10;
 const MIN_ZOOM = 50;
@@ -29,6 +29,7 @@ const tabList: { key: TabKey; label: string; Icon?: React.ComponentType<any> }[]
   { key: "erd", label: "ERD", Icon: Layers },
   { key: "lineage", label: "Lineage graph", Icon: Share2 },
   { key: "mapping", label: "Mapping", Icon: Box },
+  { key: "sql", label: "SQL", Icon: Database },
 ];
 
 type ViewState = {
@@ -77,6 +78,7 @@ const Visualization: React.FC = () => {
   const [lineage, setLineage] = useState<any | null>(null);
   const [mermaids, setMermaids] = useState<Array<{ name: string; content: string }>>([]);
   const [csvText, setCsvText] = useState<string | null>(null);
+  const [sqlText, setSqlText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -87,6 +89,7 @@ const Visualization: React.FC = () => {
       erd: loadState("erd"),
       lineage: loadState("lineage"),
       mapping: defaultState(),
+      sql: defaultState(),
     };
   });
 
@@ -118,6 +121,7 @@ const Visualization: React.FC = () => {
           setCsvText(body.csv || null);
           setMermaids(Array.isArray(body.mermaids) ? body.mermaids : []);
           setLineage(body.lineage || null);
+          setSqlText(body.sql || null);
         }
       } catch (err: any) {
         console.error("generate failed", err);
@@ -295,7 +299,7 @@ const Visualization: React.FC = () => {
         if (activeTab === "erd" || activeTab === "lineage") zoomOut();
       } else if (e.key === "0") {
         if (activeTab === "erd" || activeTab === "lineage") resetView();
-      } else if (["1", "2", "3", "4"].includes(e.key)) {
+      } else if (["1", "2", "3", "4", "5"].includes(e.key)) { // Updated for 5 tabs
         const idx = Number(e.key) - 1;
         setActiveTab(tabList[Math.min(idx, tabList.length - 1)].key);
       }
@@ -369,6 +373,54 @@ const Visualization: React.FC = () => {
     );
   };
 
+  const renderSQL = () => {
+    return (
+      <div className="w-full h-full p-6 overflow-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-semibold">Generated SQL (DDL)</h3>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (sqlText) {
+                  navigator.clipboard.writeText(sqlText);
+                  alert("SQL copied to clipboard!");
+                }
+              }}
+              disabled={!sqlText}
+            >
+              Copy
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (sqlText) {
+                  const blob = new Blob([sqlText], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "schema.sql";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }
+              }}
+              disabled={!sqlText}
+            >
+              Download .sql
+            </Button>
+          </div>
+        </div>
+        <div className="bg-muted/30 border border-border rounded-lg p-4 overflow-auto font-mono text-sm whitespace-pre">
+          {sqlText || <span className="text-muted-foreground">No SQL generated.</span>}
+        </div>
+      </div>
+    );
+  };
+
   const renderMapping = () => {
     const rows = csvText ? csvText.split(/\r?\n/).filter(r => r.trim()) : [];
     const headers = rows.length > 0 ? rows[0].split(',') : [];
@@ -416,6 +468,9 @@ const Visualization: React.FC = () => {
         </div>
         <div style={{ display: activeTab === "mapping" ? "block" : "none" }} className="w-full h-full">
           {renderMapping()}
+        </div>
+        <div style={{ display: activeTab === "sql" ? "block" : "none" }} className="w-full h-full">
+          {renderSQL()}
         </div>
       </>
     );

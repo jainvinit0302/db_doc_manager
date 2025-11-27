@@ -50,6 +50,8 @@ const DataVisualization: React.FC = () => {
   const [lineageLevel, setLineageLevel] = useState<"table" | "column">("table");
   const [mermaids, setMermaids] = useState<Array<{ name: string; content: string }>>([]);
   const [csvText, setCsvText] = useState<string | null>(null);
+  const [sqlData, setSqlData] = useState<any | null>(null); // Object with dialects
+  const [activeDialect, setActiveDialect] = useState<string>("sql");
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -200,6 +202,7 @@ const DataVisualization: React.FC = () => {
       setErrorMsg(null);
       setMermaids([]);
       setCsvText(null);
+      setSqlData(null);
       setLineage(null);
 
       try {
@@ -220,6 +223,7 @@ const DataVisualization: React.FC = () => {
         // csv: may be empty string
         if (mounted) {
           setCsvText(body.csv || null);
+          setSqlData(body.sql || null);
           setMermaids(Array.isArray(body.mermaids) ? body.mermaids : []);
           // normalize lineage to ensure nodes exist before setting
           const normalized = normalizeLineage(body.lineage || null);
@@ -242,115 +246,115 @@ const DataVisualization: React.FC = () => {
 
   // Render first mermaid (ERD) into SVG when mermaids state changes
   useEffect(() => {
-  const container = erdContainerRef.current;
-  if (!container) return;
+    const container = erdContainerRef.current;
+    if (!container) return;
 
-  // choose preferred mermaid content (prefer erd_ files or content containing erDiagram)
-  const pickMermaid = (preferType = 'erDiagram') => {
-    if (!mermaids || mermaids.length === 0) return null;
-    // 1) by file name
-    const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith(preferType === 'erDiagram' ? 'erd_' : 'class_'));
-    if (byName && byName.content) return byName.content;
-    // 2) by content
-    const byContent = mermaids.find(m => typeof m.content === 'string' && new RegExp(`(^|\\n)\\s*${preferType}\\b`, 'i').test(m.content));
-    if (byContent && byContent.content) return byContent.content;
-    // 3) fallback to first file
-    return mermaids[0].content || null;
-  };
+    // choose preferred mermaid content (prefer erd_ files or content containing erDiagram)
+    const pickMermaid = (preferType = 'erDiagram') => {
+      if (!mermaids || mermaids.length === 0) return null;
+      // 1) by file name
+      const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith(preferType === 'erDiagram' ? 'erd_' : 'class_'));
+      if (byName && byName.content) return byName.content;
+      // 2) by content
+      const byContent = mermaids.find(m => typeof m.content === 'string' && new RegExp(`(^|\\n)\\s*${preferType}\\b`, 'i').test(m.content));
+      if (byContent && byContent.content) return byContent.content;
+      // 3) fallback to first file
+      return mermaids[0].content || null;
+    };
 
-  const erMermaid = pickMermaid('erDiagram');
-  const classMermaid = (() => {
-    if (!mermaids || mermaids.length === 0) return null;
-    // find first class_ or content with classDiagram
-    const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith('class_'));
-    if (byName) return byName.content;
-    const byContent = mermaids.find(m => typeof m.content === 'string' && /(^|\n)\s*classDiagram\b/i.test(m.content));
-    if (byContent) return byContent.content;
-    return null;
-  })();
+    const erMermaid = pickMermaid('erDiagram');
+    const classMermaid = (() => {
+      if (!mermaids || mermaids.length === 0) return null;
+      // find first class_ or content with classDiagram
+      const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith('class_'));
+      if (byName) return byName.content;
+      const byContent = mermaids.find(m => typeof m.content === 'string' && /(^|\n)\s*classDiagram\b/i.test(m.content));
+      if (byContent) return byContent.content;
+      return null;
+    })();
 
-  const escapeAndShow = (text: string, errMsg?: string) => {
-    container.innerHTML = `<pre>${escapeHtml(text)}</pre>` + (errMsg ? `<div class="text-sm text-red-600 mt-2">Mermaid render error: ${escapeHtml(errMsg)}</div>` : '');
-  };
+    const escapeAndShow = (text: string, errMsg?: string) => {
+      container.innerHTML = `<pre>${escapeHtml(text)}</pre>` + (errMsg ? `<div class="text-sm text-red-600 mt-2">Mermaid render error: ${escapeHtml(errMsg)}</div>` : '');
+    };
 
-  const tryRender = async (content: string | null) => {
-    if (!content) return false;
-    try {
-      // attempt parse first to get syntax errors early (some mermaid versions have parse())
-      if ((mermaid as any).parse && typeof (mermaid as any).parse === 'function') {
-        try {
-          (mermaid as any).parse(content);
-        } catch (parseErr) {
-          // parsing failed — surface the message and rethrow to fall back
-          throw parseErr;
+    const tryRender = async (content: string | null) => {
+      if (!content) return false;
+      try {
+        // attempt parse first to get syntax errors early (some mermaid versions have parse())
+        if ((mermaid as any).parse && typeof (mermaid as any).parse === 'function') {
+          try {
+            (mermaid as any).parse(content);
+          } catch (parseErr) {
+            // parsing failed — surface the message and rethrow to fall back
+            throw parseErr;
+          }
         }
-      }
 
-      // render: handle both Promise and sync return shapes
-      if (typeof (mermaid as any).render === 'function') {
-        const r = (mermaid as any).render(`mermaid_${Date.now()}`, content);
-        if (r && typeof r.then === 'function') {
-          const resolved = await r;
-          const svg = typeof resolved === 'string' ? resolved : resolved?.svg || resolved?.rendered || '';
-          if (!svg) throw new Error('Mermaid.render returned no svg');
+        // render: handle both Promise and sync return shapes
+        if (typeof (mermaid as any).render === 'function') {
+          const r = (mermaid as any).render(`mermaid_${Date.now()}`, content);
+          if (r && typeof r.then === 'function') {
+            const resolved = await r;
+            const svg = typeof resolved === 'string' ? resolved : resolved?.svg || resolved?.rendered || '';
+            if (!svg) throw new Error('Mermaid.render returned no svg');
+            container.innerHTML = svg;
+            return true;
+          } else if (typeof r === 'string') {
+            container.innerHTML = r;
+            return true;
+          }
+        }
+
+        // fallback to mermaidAPI.render if present
+        if ((mermaid as any).mermaidAPI && typeof (mermaid as any).mermaidAPI.render === 'function') {
+          const apiRes = await (mermaid as any).mermaidAPI.render(`mermaid_${Date.now()}`, content);
+          const svg = apiRes && (apiRes.svg || apiRes?.rendered || '');
+          if (!svg) throw new Error('mermaidAPI.render returned no svg');
           container.innerHTML = svg;
           return true;
-        } else if (typeof r === 'string') {
-          container.innerHTML = r;
-          return true;
         }
+
+        // last resort: show raw text
+        escapeAndShow(content, 'No mermaid renderer available');
+        return false;
+      } catch (err: any) {
+        // bubble the error so caller can try fallback
+        throw err;
+      }
+    };
+
+    (async () => {
+      // clear container while rendering
+      container.innerHTML = '';
+      // 1) try ER diagram content first
+      try {
+        if (erMermaid) {
+          await tryRender(erMermaid);
+          return;
+        }
+      } catch (err: any) {
+        console.warn('erDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
+        // continue to fallback
       }
 
-      // fallback to mermaidAPI.render if present
-      if ((mermaid as any).mermaidAPI && typeof (mermaid as any).mermaidAPI.render === 'function') {
-        const apiRes = await (mermaid as any).mermaidAPI.render(`mermaid_${Date.now()}`, content);
-        const svg = apiRes && (apiRes.svg || apiRes?.rendered || '');
-        if (!svg) throw new Error('mermaidAPI.render returned no svg');
-        container.innerHTML = svg;
-        return true;
+      // 2) try classDiagram fallback (this previously worked for you)
+      try {
+        if (classMermaid) {
+          await tryRender(classMermaid);
+          return;
+        }
+      } catch (err: any) {
+        console.warn('classDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
+        // continue to show raw content
       }
 
-      // last resort: show raw text
-      escapeAndShow(content, 'No mermaid renderer available');
-      return false;
-    } catch (err: any) {
-      // bubble the error so caller can try fallback
-      throw err;
-    }
-  };
+      // 3) if both failed, show raw erMermaid (if present) or first mermaid
+      const raw = erMermaid || (mermaids && mermaids[0] && mermaids[0].content) || '';
+      const errMsg = 'Both erDiagram and classDiagram failed to render; showing raw mermaid for debugging.';
+      escapeAndShow(raw, errMsg);
+    })();
 
-  (async () => {
-    // clear container while rendering
-    container.innerHTML = '';
-    // 1) try ER diagram content first
-    try {
-      if (erMermaid) {
-        await tryRender(erMermaid);
-        return;
-      }
-    } catch (err: any) {
-      console.warn('erDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
-      // continue to fallback
-    }
-
-    // 2) try classDiagram fallback (this previously worked for you)
-    try {
-      if (classMermaid) {
-        await tryRender(classMermaid);
-        return;
-      }
-    } catch (err: any) {
-      console.warn('classDiagram render failed:', err && (err.message || err.toString ? err.toString() : err));
-      // continue to show raw content
-    }
-
-    // 3) if both failed, show raw erMermaid (if present) or first mermaid
-    const raw = erMermaid || (mermaids && mermaids[0] && mermaids[0].content) || '';
-    const errMsg = 'Both erDiagram and classDiagram failed to render; showing raw mermaid for debugging.';
-    escapeAndShow(raw, errMsg);
-  })();
-
-}, [mermaids]);
+  }, [mermaids]);
 
 
   // helper to download csv text
@@ -392,6 +396,7 @@ const DataVisualization: React.FC = () => {
     { id: "er-diagram", label: "ER Diagram", Icon: Share2 },
     { id: "lineage", label: "Lineage", Icon: GitBranch },
     { id: "mappings", label: "Mappings", Icon: Map },
+    { id: "databases", label: "Databases", Icon: Database },
   ];
 
   return (
@@ -634,6 +639,74 @@ const DataVisualization: React.FC = () => {
                   ) : (
                     <div className="text-muted-foreground p-6">No mapping CSV available.</div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Databases Tab */}
+            {activeTab === "databases" && (
+              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-medium">Generated Database Scripts</h3>
+                    <div className="flex bg-muted rounded-md p-1">
+                      {["sql", "postgres", "snowflake", "mongodb"].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setActiveDialect(d)}
+                          className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${activeDialect === d
+                              ? "bg-background shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          {d === "sql" ? "SQL" : d.charAt(0).toUpperCase() + d.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const content = sqlData ? (typeof sqlData === 'string' ? sqlData : sqlData[activeDialect]) : "";
+                        if (content) {
+                          navigator.clipboard.writeText(content);
+                          alert(`${activeDialect} code copied to clipboard!`);
+                        }
+                      }}
+                      disabled={!sqlData}
+                    >
+                      Copy
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const content = sqlData ? (typeof sqlData === 'string' ? sqlData : sqlData[activeDialect]) : "";
+                        if (content) {
+                          const ext = activeDialect === 'mongodb' ? 'js' : 'sql';
+                          const blob = new Blob([content], { type: "text/plain" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `schema_${activeDialect}.${ext}`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }
+                      }}
+                      disabled={!sqlData}
+                    >
+                      Download
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-[520px] overflow-auto bg-muted/30 border border-border rounded p-4 font-mono text-sm whitespace-pre">
+                  {sqlData
+                    ? (typeof sqlData === 'string' ? sqlData : (sqlData[activeDialect] || "No code generated for this dialect."))
+                    : <span className="text-muted-foreground">No SQL generated.</span>}
                 </div>
               </div>
             )}

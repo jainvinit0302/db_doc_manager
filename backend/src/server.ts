@@ -7,7 +7,8 @@ import YAML from "js-yaml";
 import cors from "cors";
 
 import { validateStructure, normalize } from "./parser";
-import { writeMappingCSV, generateMermaidERD, generateLineageJSON } from "./generator";
+import { generateMermaidERD, writeMappingCSV, generateLineageJSON } from "./generator";
+import { generateSQL, generateDialects } from "./sql_generator";
 import { referentialValidate } from "./validator";
 import db from "./db";
 import { generateToken, hashPassword, comparePassword, authMiddleware, AuthRequest } from "./auth";
@@ -406,11 +407,21 @@ app.post("/api/generate", (req, res) => {
       lineage = null;
     }
 
+    // Generate SQL Dialects
+    let sql: any = {};
+    try {
+      sql = generateDialects(ast);
+    } catch (errSql: any) {
+      console.error("SQL generation error:", errSql);
+      sql = { error: errSql.message };
+    }
+
     // Respond with all artifacts
     return res.json({
       csv,
       mermaids: mermaidFiles,
       lineage,
+      sql, // This is now an object { postgres, snowflake, mongodb }
       referentialWarnings: refWarnings,
     });
   } catch (err: any) {
