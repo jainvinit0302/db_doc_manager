@@ -231,24 +231,95 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
         });
       });
     } else {
-      // Column level: include source_column, column, rule, and also parent table/source nodes for context
+      // Column level: Compound nodes (Columns nested in Tables)
+
+      // 1. First, identify and add all PARENT nodes (Tables and Sources)
+      // We scan all nodes to find parents, or just add them if they are explicitly in the list.
+      // But we also need to ensure parents exist for any column we find.
+
       (lineage.nodes || []).forEach((n) => {
-        // include everything useful: source_column, column, rule, source, table
-        if (["source_column", "column", "rule", "source", "table"].includes(n.type)) {
+        if (n.type === "table" || n.type === "source") {
           addNodeIfNeeded(n);
         }
       });
 
-      // add all column-level edges
+      // 2. Now add CHILD nodes (Columns) and assign them to parents
+      (lineage.nodes || []).forEach((n) => {
+        if (n.type === "column") {
+          // Parent is the table: t:db.schema.table
+          // We can derive it from the ID or meta.
+          // ID format: t:db.schema.table.colName
+          // Parent ID: t:db.schema.table
+          // Or use meta.table if available.
+
+          let parentId = null;
+          if (n.meta && n.meta.table) {
+            parentId = `t:${n.meta.table}`;
+          } else {
+            // fallback try to parse ID
+            const parts = n.id.split('.');
+            if (parts.length > 1) {
+              parentId = parts.slice(0, -1).join('.');
+            }
+          }
+
+          // Ensure parent exists
+          if (parentId && !addedNodeIds.has(parentId)) {
+            // If parent not found in nodes list, create synthetic one
+            addNodeIfNeeded({ id: parentId, label: parentId, type: "table", meta: {} });
+          }
+
+          // Add the column node with parent reference
+          if (!addedNodeIds.has(n.id)) {
+            addedNodeIds.add(n.id);
+            elements.push({
+              data: {
+                id: n.id,
+                label: n.label || n.id,
+                type: n.type,
+                parent: parentId, // This makes it a compound node
+                meta: n.meta || {},
+              },
+            });
+          }
+        } else if (n.type === "source_column") {
+          // Parent is the source: src:source_id
+          let parentId = null;
+          if (n.meta && n.meta.source_id) {
+            parentId = `src:${n.meta.source_id}`;
+          }
+
+          if (parentId && !addedNodeIds.has(parentId)) {
+            addNodeIfNeeded({ id: parentId, label: parentId, type: "source", meta: {} });
+          }
+
+          if (!addedNodeIds.has(n.id)) {
+            addedNodeIds.add(n.id);
+            elements.push({
+              data: {
+                id: n.id,
+                label: n.label || n.id,
+                type: n.type,
+                parent: parentId,
+                meta: n.meta || {},
+              },
+            });
+          }
+        } else if (n.type === "rule") {
+          // Rules are usually free-floating or could be grouped. Let's keep them free for now.
+          addNodeIfNeeded(n);
+        }
+      });
+
+      // 3. Add Edges
       (lineage.edges || []).forEach((e) => {
-        // ensure source/target nodes exist (synthetic if necessary)
+        // Ensure endpoints exist (though they should have been added above)
         if (!addedNodeIds.has(e.source)) {
-          if (nodeById.has(e.source)) addNodeIfNeeded(nodeById.get(e.source));
-          else addNodeIfNeeded({ id: e.source, label: e.source, type: e.source.startsWith("src:") ? "source_column" : "node", meta: {} });
+          // If missing, add as free node (fallback)
+          addNodeIfNeeded({ id: e.source, label: e.source, type: "node", meta: {} });
         }
         if (!addedNodeIds.has(e.target)) {
-          if (nodeById.has(e.target)) addNodeIfNeeded(nodeById.get(e.target));
-          else addNodeIfNeeded({ id: e.target, label: e.target, type: "column", meta: {} });
+          addNodeIfNeeded({ id: e.target, label: e.target, type: "node", meta: {} });
         }
 
         elements.push({
@@ -258,6 +329,26 @@ export default function LineageGraph({ lineage, level = "table", className }: Pr
             target: e.target,
             type: e.type || "column_lineage",
             meta: e.meta || {},
+          },
+        });
+      });
+
+      // 4. Add Table Edges (optional, but good for context)
+      // In a compound graph, edges between parents are allowed.
+      (lineage.table_edges || []).forEach((te) => {
+        const srcId = te.source;
+        const tgtId = te.target;
+
+        if (!addedNodeIds.has(srcId)) addNodeIfNeeded({ id: srcId, label: srcId, type: "table", meta: {} });
+        if (!addedNodeIds.has(tgtId)) addNodeIfNeeded({ id: tgtId, label: tgtId, type: "table", meta: {} });
+
+        elements.push({
+          data: {
+            id: te.id || `table_edge_${te.source}_${te.target}_${elements.length}`,
+            source: te.source,
+            target: te.target,
+            type: "table_lineage",
+            meta: te.meta || {},
           },
         });
       });
