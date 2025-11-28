@@ -39,9 +39,24 @@ export default function ERDView({ mermaids, className }: ERDViewProps) {
         }
 
         const pickMermaid = (preferType = 'erDiagram') => {
+            console.log('[ERDView] Available mermaids:', mermaids.map(m => ({ name: m.name, contentLength: m.content?.length })));
+
+            // 0) Priority: Global ERD
+            if (preferType === 'erDiagram') {
+                const global = mermaids.find(m => m.name && (m.name === 'erd_all.mmd' || m.name.includes('all') || m.name.includes('global')));
+                if (global && global.content) {
+                    console.log('[ERDView] Picked global ERD:', global.name);
+                    console.log('[ERDView] Global ERD content preview:', global.content.substring(0, 500));
+                    return global.content;
+                }
+            }
+
             // 1) by file name
             const byName = mermaids.find(m => m.name && m.name.toLowerCase().startsWith(preferType === 'erDiagram' ? 'erd_' : 'class_'));
-            if (byName && byName.content) return byName.content;
+            if (byName && byName.content) {
+                console.log('[ERDView] Picked by name:', byName.name);
+                return byName.content;
+            }
             // 2) by content
             const byContent = mermaids.find(m => typeof m.content === 'string' && new RegExp(`(^|\\n)\\s*${preferType}\\b`, 'i').test(m.content));
             if (byContent && byContent.content) return byContent.content;
