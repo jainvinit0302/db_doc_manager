@@ -1,0 +1,46 @@
+erDiagram
+
+  dim_user {
+    user_id bigint
+    email varchar_320
+    full_name varchar_256
+    country varchar_64
+    gender varchar_32
+    signup_ts timestamp
+  }
+
+  dim_device {
+    device_id integer
+    device_type varchar_64
+    os varchar_64
+    browser varchar_64
+  }
+
+  fact_user_activity {
+    event_id bigint
+    user_id bigint
+    device_id integer
+    event_type varchar_64
+    event_ts timestamp
+    session_id varchar_128
+    page_url varchar_512
+    geo_lat decimal_10_6
+    geo_long decimal_10_6
+  }
+
+  fact_revenue {
+    revenue_id bigint
+    order_id bigint
+    order_date date
+    user_id bigint
+    product_id bigint
+    price decimal_12_2
+    qty integer
+    total decimal_12_2
+  }
+
+  %% Relationships
+  dim_user ||--o{ fact_user_activity : "user_id"
+  dim_device ||--o{ fact_user_activity : "device_id"
+  dim_user ||--o{ fact_revenue : "user_id"
+
