@@ -15,7 +15,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Database, Key } from 'lucide-react';
+import { Database, Key, AlertCircle, Check, Hash } from 'lucide-react';
 
 // --- Types ---
 interface ERDGraphProps {
@@ -26,20 +26,31 @@ interface ERDGraphProps {
 // --- Custom Node Component ---
 const TableNode = ({ data }: NodeProps) => {
     return (
-        <div className="bg-card border border-border rounded shadow-sm min-w-[200px] overflow-hidden">
+        <div className="bg-card border border-border rounded shadow-sm min-w-[220px] overflow-hidden">
             <div className="bg-muted/50 px-3 py-2 border-b border-border flex items-center gap-2">
                 <Database className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-sm text-card-foreground">{data.label}</span>
+                <span className="font-semibold text-sm text-card-foreground" title={`${data.db}.${data.schema}.${data.label}`}>{data.label}</span>
             </div>
             <div className="p-2 space-y-1">
                 {data.columns.map((col: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-xs group relative px-1 py-0.5 hover:bg-muted/30 rounded">
-                        <div className="flex items-center gap-1.5 overflow-hidden">
+                        <div className="flex items-center gap-1.5 overflow-hidden flex-1">
                             {col.isPk && <Key className="w-3 h-3 text-yellow-500 flex-shrink-0" />}
                             {col.isFk && <Key className="w-3 h-3 text-blue-500 flex-shrink-0 rotate-90" />}
-                            <span className="truncate text-card-foreground/80 font-medium" title={col.name}>{col.name}</span>
+                            {!col.isPk && !col.isFk && <Hash className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />}
+
+                            <span className={`truncate font-medium ${col.isPk ? 'text-primary' : 'text-card-foreground/80'}`} title={col.name}>
+                                {col.name}
+                            </span>
                         </div>
-                        <span className="text-muted-foreground/70 font-mono text-[10px] ml-2 flex-shrink-0">{col.type}</span>
+
+                        <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                            <span className="text-muted-foreground/70 font-mono text-[10px]">{col.type}</span>
+                            <div className="flex gap-0.5">
+                                {col.notNull && <span className="text-[9px] px-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-bold" title="Not Null">N</span>}
+                                {col.unique && <span className="text-[9px] px-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-bold" title="Unique">U</span>}
+                            </div>
+                        </div>
 
                         {/* Handles for connecting edges */}
                         <Handle type="source" position={Position.Right} className="!bg-transparent !border-none !w-1 !h-1 !right-0" />
@@ -60,7 +71,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-    const nodeWidth = 220;
+    const nodeWidth = 240;
     const nodeHeight = 36; // base height
 
     dagreGraph.setGraph({ rankdir: 'LR' });
@@ -102,34 +113,54 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
         }
 
         console.log('ERDGraph: Received data:', data);
-        console.log('ERDGraph: Number of table keys:', Object.keys(data).length);
+        const tableKeys = Object.keys(data);
+        console.log('ERDGraph: Table keys:', tableKeys);
 
         const newNodes: Node[] = [];
         const newEdges: Edge[] = [];
 
-        // 1. Create Nodes
-        const tableKeys = Object.keys(data);
-        console.log('ERDGraph: Table keys:', tableKeys);
+        // Build simple name index for smarter lookup
+        const simpleNameIndex: Record<string, string[]> = {};
+        tableKeys.forEach(key => {
+            const t = data[key];
+            const simple = t.table;
+            if (!simple) return;
+            simpleNameIndex[simple] = simpleNameIndex[simple] || [];
+            simpleNameIndex[simple].push(key);
+        });
 
         // Helper to find table key by simple name or full name
         const findTableKey = (ref: string, currentSchema: string, currentDb: string) => {
             const simpleRef = ref.split('.').pop() || ref;
-            // Try exact match
+
+            // 1. Try exact match in data keys
             if (data[ref]) return ref;
-            // Try simple name match
-            const candidates = tableKeys.filter(k => {
-                const t = data[k];
-                return t.table === simpleRef;
-            });
+
+            // 2. Try simple name index
+            const candidates = simpleNameIndex[simpleRef] || [];
+
             if (candidates.length === 1) return candidates[0];
             if (candidates.length > 1) {
                 // Prefer same schema/db
                 const sameSchema = candidates.find(k => k.includes(`.${currentSchema}.`));
                 if (sameSchema) return sameSchema;
+
+                const sameDb = candidates.find(k => k.startsWith(`${currentDb}.`));
+                if (sameDb) return sameDb;
             }
+
+            // 3. Fallback: try case-insensitive match
+            const lowerRef = simpleRef.toLowerCase();
+            const caseInsensitiveMatch = tableKeys.find(k => {
+                const t = data[k];
+                return t.table.toLowerCase() === lowerRef;
+            });
+            if (caseInsensitiveMatch) return caseInsensitiveMatch;
+
             return candidates[0] || null;
         };
 
+        // 1. Create Nodes
         tableKeys.forEach((key) => {
             const t = data[key];
             const columns = Object.keys(t.columns || {}).map(colName => {
@@ -139,7 +170,10 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
                     type: col.type,
                     isPk: col.pk || false,
                     isFk: !!col.fk,
-                    fk: col.fk
+                    fk: col.fk,
+                    notNull: col.not_null,
+                    unique: col.unique,
+                    default: col.default
                 };
             });
 
@@ -182,9 +216,11 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
                                 type: 'smoothstep',
                                 markerEnd: { type: MarkerType.ArrowClosed },
                                 animated: false,
-                                style: { stroke: '#64748b' },
+                                style: { stroke: '#64748b', strokeWidth: 1.5 },
                                 label: colName
                             });
+                        } else {
+                            console.warn(`ERDGraph: Could not resolve FK ref "${targetRef}" from table "${t.table}"`);
                         }
                     }
                 }
@@ -218,7 +254,6 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
         console.log('ERDGraph: After layout - nodes:', layouted.nodes.length, 'edges:', layouted.edges.length);
         setNodes(layouted.nodes);
         setEdges(layouted.edges);
-        console.log('ERDGraph: State updated with', layouted.nodes.length, 'nodes and', layouted.edges.length, 'edges');
 
     }, [data, setNodes, setEdges]);
 
@@ -240,8 +275,14 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
                     maskColor="rgba(241, 245, 249, 0.7)"
                 />
                 <Panel position="top-right" className="bg-background/80 p-2 rounded border border-border text-xs text-muted-foreground">
-                    <div>Solid line: Explicit FK</div>
-                    <div>Dashed line: Inferred FK</div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="w-4 h-0.5 bg-slate-500"></span>
+                        <span>Explicit FK</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-4 h-0.5 bg-slate-400 border-t border-dashed"></span>
+                        <span>Inferred FK</span>
+                    </div>
                 </Panel>
             </ReactFlow>
         </div>
