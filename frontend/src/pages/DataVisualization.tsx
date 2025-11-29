@@ -360,7 +360,7 @@ const DataVisualization: React.FC = () => {
       escapeAndShow(raw, errMsg);
     })();
 
-  }, [mermaids]);
+  }, [mermaids, activeTab]);
 
 
   // helper to download csv text
