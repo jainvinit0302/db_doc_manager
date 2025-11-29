@@ -89,6 +89,8 @@ const Login = () => {
                 required
                 className="bg-background/50"
                 disabled={loading}
+                autoComplete="off"
+                name="login-email"
               />
             </div>
             <div className="space-y-2">
@@ -102,6 +104,8 @@ const Login = () => {
                 required
                 className="bg-background/50"
                 disabled={loading}
+                autoComplete="off"
+                name="login-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>

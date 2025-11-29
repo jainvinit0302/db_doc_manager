@@ -1,0 +1,117 @@
+project: retail_dw
+version: "0.1"
+owners:
+  - data-eng@company.com
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: mart
+    tables:
+      # Table 1: User Dimension
+      - name: dim_user
+        description: Master user dimension
+        columns:
+          - name: user_id
+            type: INTEGER
+            pk: true
+            description: Surrogate key
+          - name: email
+            type: VARCHAR(320)
+            unique: true
+            not_null: true
+            description: User email (PII)
+          - name: address_street
+            type: VARCHAR(256)
+          - name: created_at
+            type: TIMESTAMP
+            default: now()
+
+      # Table 2: Product Dimension
+      - name: dim_product
+        description: Product master dimension
+        columns:
+          - name: product_id
+            type: INTEGER
+            pk: true
+          - name: product_name
+            type: VARCHAR(200)
+            not_null: true
+          - name: category
+            type: VARCHAR(100)
+          - name: price
+            type: DECIMAL(10,2)
+
+      # Table 3: Order Fact Table
+      - name: fact_order
+        description: Order transactions
+        columns:
+          - name: order_id
+            type: INTEGER
+            pk: true
+          - name: user_id
+            type: INTEGER
+            fk:
+              schema: mart
+              table: dim_user
+              column: user_id
+          - name: product_id
+            type: INTEGER
+            fk:
+              schema: mart
+              table: dim_product
+              column: product_id
+          - name: order_date
+            type: TIMESTAMP
+          - name: quantity
+            type: INTEGER
+          - name: total_amount
+            type: DECIMAL(12,2)
+
+      # Table 4: Denormalized Employee-Project (your existing table concept)
+      - name: denorm_emp_project
+        columns:
+          - name: emp_id
+            type: STRING
+          - name: project_id
+            type: STRING
+          - name: emp_name
+            type: STRING
+          - name: project_name
+            type: STRING
+          - name: allocation_pct
+            type: INTEGER
+
+sources:
+  - id: mongo_users
+    kind: mongodb
+    conn: atlas-cluster-A
+    db: shop
+    collection: users
+
+  - id: product_api
+    kind: file
+    format: json
+    path: /data/products.json
+
+mappings:
+  - target: dw.mart.dim_user.email
+    from:
+      source_id: mongo_users
+      path: $.contact.email
+      transform: lower()
+  - target: dw.mart.dim_user.address_street
+    from:
+      source_id: mongo_users
+      path: $.address.street
+  - target: dw.mart.dim_user.user_id
+    from:
+      rule: "sequence('dim_user_seq')"
+  
+  - target: dw.mart.dim_product.product_name
+    from:
+      source_id: product_api
+      path: $.name
+
+notes:
+  - "PII: email; mask in non-prod exports"

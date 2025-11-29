@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import LineageGraph from "@/components/LineageGraph";
-import ERDView from "@/components/ERDView";
+import ERDGraph from "@/components/ERDGraph";
 
 type TabKey = "schema" | "erd" | "lineage" | "mapping" | "sql";
 
@@ -36,6 +36,7 @@ type ViewState = {
   zoom: number;
   offset: { x: number; y: number };
   isPanMode: boolean;
+  // React Flow state could be persisted here too if needed, but keeping it simple for now
 };
 
 const defaultState = (): ViewState => ({
@@ -76,6 +77,7 @@ const Visualization: React.FC = () => {
   const [parsedTables, setParsedTables] = useState<any[]>([]);
 
   const [lineage, setLineage] = useState<any | null>(null);
+  const [erdData, setErdData] = useState<any | null>(null);
   const [mermaids, setMermaids] = useState<Array<{ name: string; content: string }>>([]);
   const [csvText, setCsvText] = useState<string | null>(null);
   const [sqlText, setSqlText] = useState<string | null>(null);
@@ -117,11 +119,16 @@ const Visualization: React.FC = () => {
         }
 
         const body = await res.json();
+        console.log('Visualization: API response body:', body);
+        console.log('Visualization: ERD data:', body.erd);
+        console.log('Visualization: ERD data keys:', body.erd ? Object.keys(body.erd) : 'null');
         if (mounted) {
           setCsvText(body.csv || null);
           setMermaids(Array.isArray(body.mermaids) ? body.mermaids : []);
           setLineage(body.lineage || null);
+          setErdData(body.erd || null);
           setSqlText(body.sql || null);
+          console.log('Visualization: Set ERD state with', body.erd ? Object.keys(body.erd).length : 0, 'tables');
         }
       } catch (err: any) {
         console.error("generate failed", err);
@@ -221,33 +228,33 @@ const Visualization: React.FC = () => {
   );
 
   const zoomIn = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
+    if (activeTab !== "lineage") return; // ERD handles its own zoom
     setActiveViewState((s) => ({ ...s, zoom: Math.min(s.zoom + ZOOM_STEP, MAX_ZOOM) }));
   }, [activeTab, setActiveViewState]);
 
   const zoomOut = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
+    if (activeTab !== "lineage") return;
     setActiveViewState((s) => ({ ...s, zoom: Math.max(s.zoom - ZOOM_STEP, MIN_ZOOM) }));
   }, [activeTab, setActiveViewState]);
 
   const resetView = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
+    if (activeTab !== "lineage") return;
     setActiveViewState(() => defaultState());
   }, [activeTab, setActiveViewState]);
 
   const togglePanMode = useCallback(() => {
-    if (activeTab !== "erd" && activeTab !== "lineage") return;
+    if (activeTab !== "lineage") return;
     setActiveViewState((s) => ({ ...s, isPanMode: !s.isPanMode }));
   }, [activeTab, setActiveViewState]);
 
-  // Wheel-to-zoom only for erd/lineage and only when ctrl/meta is pressed
+  // Wheel-to-zoom only for lineage and only when ctrl/meta is pressed
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
       // only zoom when ctrl/cmd pressed and active tab supports controls
-      if (!(activeTab === "erd" || activeTab === "lineage")) return;
+      if (activeTab !== "lineage") return;
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       if (e.deltaY > 0) zoomOut();
@@ -260,8 +267,8 @@ const Visualization: React.FC = () => {
 
   // panning logic - only active when current tab's isPanMode === true
   const onMouseDown = (e: React.MouseEvent) => {
-    // only for erd and lineage when pan mode turned on
-    if (!(activeTab === "erd" || activeTab === "lineage")) return;
+    // only for lineage when pan mode turned on
+    if (activeTab !== "lineage") return;
     const current = viewStates[activeTab];
     if (!current.isPanMode) return;
 
@@ -274,8 +281,8 @@ const Visualization: React.FC = () => {
 
   const onMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !lastMouse.current) return;
-    // only modify state for erd/lineage
-    if (!(activeTab === "erd" || activeTab === "lineage")) return;
+    // only modify state for lineage
+    if (activeTab !== "lineage") return;
     const dx = e.clientX - lastMouse.current.x;
     const dy = e.clientY - lastMouse.current.y;
     lastMouse.current = { x: e.clientX, y: e.clientY };
@@ -294,11 +301,11 @@ const Visualization: React.FC = () => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "+" || e.key === "=") {
-        if (activeTab === "erd" || activeTab === "lineage") zoomIn();
+        if (activeTab === "lineage") zoomIn();
       } else if (e.key === "-") {
-        if (activeTab === "erd" || activeTab === "lineage") zoomOut();
+        if (activeTab === "lineage") zoomOut();
       } else if (e.key === "0") {
-        if (activeTab === "erd" || activeTab === "lineage") resetView();
+        if (activeTab === "lineage") resetView();
       } else if (["1", "2", "3", "4", "5"].includes(e.key)) { // Updated for 5 tabs
         const idx = Number(e.key) - 1;
         setActiveTab(tabList[Math.min(idx, tabList.length - 1)].key);
@@ -308,7 +315,7 @@ const Visualization: React.FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeTab, zoomIn, zoomOut, resetView]);
 
-  const shouldShowControls = useMemo(() => activeTab === "erd" || activeTab === "lineage", [activeTab]);
+  const shouldShowControls = useMemo(() => activeTab === "lineage", [activeTab]);
 
   // Renderers
   const renderSchema = () => (
@@ -333,23 +340,13 @@ const Visualization: React.FC = () => {
   );
 
   const renderERD = () => {
-    const s = viewStates.erd;
+    // React Flow handles its own zoom/pan, so we don't use the wrapper transform
     return (
-      <div className="w-full h-full p-6 overflow-hidden relative">
-        <h3 className="text-xl font-semibold mb-3 absolute top-6 left-6 z-10 bg-background/80 px-2 rounded">ERD</h3>
-        <div
-          style={{
-            transform: `translate(${s.offset.x}px, ${s.offset.y}px) scale(${s.zoom / 100})`,
-            transformOrigin: "0 0",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <ERDView
-            mermaids={mermaids}
-            className="w-full h-full"
-          />
-        </div>
+      <div className="w-full h-full overflow-hidden relative">
+        <ERDGraph
+          data={erdData}
+          className="w-full h-full"
+        />
       </div>
     );
   };

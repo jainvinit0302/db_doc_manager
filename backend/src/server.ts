@@ -436,6 +436,7 @@ app.post("/api/generate", (req, res) => {
       mermaids: mermaidFiles,
       lineage,
       sql, // This is now an object { postgres, snowflake, mongodb }
+      erd: ast.targets, // Return structured ERD data for React Flow
       referentialWarnings: refWarnings,
     });
   } catch (err: any) {

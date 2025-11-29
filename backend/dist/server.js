@@ -218,6 +218,15 @@ app.post("/api/validate", (req, res) => {
             : req.body && req.body.yaml
                 ? req.body.yaml
                 : null;
+        // Pre-process YAML to fix unquoted types with commas (e.g. DECIMAL(10,2))
+        if (yamlText) {
+            // Regex to find "type: TYPE(X,Y)" and quote it as "type: 'TYPE(X,Y)'"
+            // This handles the specific case where the comma breaks the flow-style object
+            const fixed = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+            // Also handle cases where it might be inside a flow object like { name: x, type: DECIMAL(10,2) }
+            // The previous regex works for simple cases, but let's be careful.
+            // Actually, simply quoting the value if it looks like a function call with args works best.
+        }
         if (!yamlText) {
             return res
                 .status(400)
@@ -225,7 +234,9 @@ app.post("/api/validate", (req, res) => {
         }
         let parsed;
         try {
-            parsed = js_yaml_1.default.load(yamlText);
+            // Fix unquoted types with commas
+            const fixedYaml = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+            parsed = js_yaml_1.default.load(fixedYaml);
         }
         catch (e) {
             return res
@@ -272,7 +283,9 @@ app.post("/api/generate", (req, res) => {
         }
         let parsed;
         try {
-            parsed = js_yaml_1.default.load(yamlText);
+            // Fix unquoted types with commas
+            const fixedYaml = yamlText.replace(/(type:\s*)([a-zA-Z0-9_]+\([0-9]+,\s*[0-9]+\))/g, '$1"$2"');
+            parsed = js_yaml_1.default.load(fixedYaml);
         }
         catch (e) {
             return res
@@ -347,6 +360,7 @@ app.post("/api/generate", (req, res) => {
             mermaids: mermaidFiles,
             lineage,
             sql, // This is now an object { postgres, snowflake, mongodb }
+            erd: ast.targets, // Return structured ERD data for React Flow
             referentialWarnings: refWarnings,
         });
     }

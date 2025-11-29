@@ -6,8 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.writeMappingCSV = writeMappingCSV;
 exports.generateMermaidERD = generateMermaidERD;
 exports.generateLineageJSON = generateLineageJSON;
+// backend/src/generator.ts
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+/** Helper utilities */
 function ensureDir(dirPath) {
     fs_1.default.mkdirSync(dirPath, { recursive: true });
 }
@@ -20,35 +22,25 @@ function csvEscape(value) {
     }
     return s;
 }
+function sanitizeName(raw) {
+    return String(raw || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
+}
 function sanitizeTypeForMermaid(rawType) {
     if (!rawType)
         return 'unknown';
     let s = String(rawType).trim();
-    // replace parentheses, commas, spaces with underscores; remove non-alnum/_ characters
     s = s.replace(/\(/g, '_').replace(/\)/g, '').replace(/,+/g, '_');
     s = s.replace(/[^A-Za-z0-9_]/g, '_');
     s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-    // keep lowercase to be consistent
     return s.toLowerCase();
 }
-function sanitizeName(raw) {
-    return String(raw || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
-}
+/** Write mapping CSV */
 function writeMappingCSV(ast, outDir) {
     const artifactsDir = path_1.default.resolve(outDir);
     ensureDir(artifactsDir);
     const header = [
-        'target_db',
-        'target_schema',
-        'target_table',
-        'target_column',
-        'target_type',
-        'source_id',
-        'source_path',
-        'transform',
-        'default',
-        'mapping_rule',
-        'notes'
+        'target_db', 'target_schema', 'target_table', 'target_column', 'target_type',
+        'source_id', 'source_path', 'transform', 'default', 'mapping_rule', 'notes'
     ];
     const rows = [header.join(',')];
     for (const m of ast.mappings || []) {
@@ -67,30 +59,22 @@ function writeMappingCSV(ast, outDir) {
         }
         const from = m.from || {};
         const row = [
-            csvEscape(db),
-            csvEscape(schema),
-            csvEscape(table),
-            csvEscape(column),
-            csvEscape(targetType),
-            csvEscape(from.source_id || ''),
-            csvEscape(from.path || ''),
-            csvEscape(from.transform || ''),
-            csvEscape(from.default || ''),
-            csvEscape(from.rule || ''),
-            csvEscape(m.notes || '')
+            csvEscape(db), csvEscape(schema), csvEscape(table), csvEscape(column), csvEscape(targetType),
+            csvEscape(from.source_id || ''), csvEscape(from.path || ''), csvEscape(from.transform || ''),
+            csvEscape(from.default || ''), csvEscape(from.rule || ''), csvEscape(m.notes || '')
         ].join(',');
         rows.push(row);
     }
     const csvPath = path_1.default.join(artifactsDir, 'mapping_matrix.csv');
     fs_1.default.writeFileSync(csvPath, rows.join('\n'), 'utf8');
 }
+/** Generate Mermaid ERDs */
 function generateMermaidERD(ast, erdDir) {
     if (!ast || !ast.targets)
         return [];
-    fs_1.default.mkdirSync(erdDir, { recursive: true });
+    ensureDir(erdDir);
     const written = [];
-    // build a quick lookup from simple table name -> full target key(s)
-    // e.g., dim_product -> [ "dw.mart.dim_product", ... ]
+    // Build a lookup from simple table name -> full target keys
     const simpleNameIndex = {};
     for (const tk of Object.keys(ast.targets || {})) {
         const t = ast.targets[tk];
@@ -98,159 +82,193 @@ function generateMermaidERD(ast, erdDir) {
         if (!simple)
             continue;
         simpleNameIndex[simple] = simpleNameIndex[simple] || [];
-        simpleNameIndex[simple].push(tk); // full key
+        simpleNameIndex[simple].push(tk);
     }
-    // group tables by db.schema
+    // Group tables by db+schema for per‑schema files
     const tablesBySchema = {};
     for (const tkey of Object.keys(ast.targets || {})) {
         const t = ast.targets[tkey];
-        const schemaKey = `${t.db}__${t.schema}`; // use __ to avoid dots in filename
+        const schemaKey = `${t.db}__${t.schema}`; // __ to avoid dots
         tablesBySchema[schemaKey] = tablesBySchema[schemaKey] || [];
         tablesBySchema[schemaKey].push(t);
     }
+    // Helper to emit a single ER diagram (tables + relationships)
+    function emitER(tables, fileName, prepend = false) {
+        const erLines = ['erDiagram'];
+        const relLines = [];
+        // Table definitions
+        for (const t of tables) {
+            const tableName = sanitizeName(t.table);
+            erLines.push('');
+            erLines.push(`  ${tableName} {`);
+            for (const colNameRaw of Object.keys(t.columns || {})) {
+                const col = t.columns[colNameRaw];
+                const colName = sanitizeName(colNameRaw);
+                const ty = sanitizeTypeForMermaid(col.type || '');
+                erLines.push(`    ${colName} ${ty}`);
+            }
+            erLines.push('  }');
+            erLines.push('');
+        }
+        // Relationships (explicit FK first)
+        for (const t of tables) {
+            const child = sanitizeName(t.table);
+            for (const colNameRaw of Object.keys(t.columns || {})) {
+                const col = t.columns[colNameRaw];
+                if (col && col.fk) {
+                    const fkObj = typeof col.fk === 'string' ? { table: col.fk } : col.fk || {};
+                    let fkTable = fkObj.table || fkObj.table_name || fkObj.ref || null;
+                    let fkColumn = fkObj.column || fkObj.col || null;
+                    if (!fkTable && typeof fkObj === 'string')
+                        fkTable = fkObj;
+                    if (!fkTable) {
+                        const maybe = String(fkObj).trim();
+                        if (maybe.includes('.')) {
+                            const parts = maybe.split('.');
+                            fkTable = parts[parts.length - 2] || parts[0];
+                            fkColumn = fkColumn || parts[parts.length - 1];
+                        }
+                    }
+                    if (fkTable) {
+                        const candidates = simpleNameIndex[String(fkTable).trim()] || [];
+                        let parentKey = null;
+                        if (candidates.length === 1)
+                            parentKey = candidates[0];
+                        else if (candidates.length > 1) {
+                            const schema = t.schema || '';
+                            const db = t.db || '';
+                            const prefer = candidates.find(c => c.includes(`.${schema}.`) || c.includes(`${db}.${schema}.`));
+                            parentKey = prefer || candidates[0];
+                        }
+                        else {
+                            // Fallback: check if fkTable is a full key
+                            const rawFk = String(fkTable).trim();
+                            if (ast.targets && ast.targets[rawFk]) {
+                                parentKey = rawFk;
+                            }
+                        }
+                        if (parentKey || fkTable) {
+                            const parentName = parentKey ? sanitizeName(parentKey.split('.').pop()) : sanitizeName(fkTable);
+                            const label = sanitizeName(fkColumn || 'fk');
+                            relLines.push(`  ${parentName} ||--o{ ${child} : "${label}"`);
+                        }
+                    }
+                }
+            }
+        }
+        // Auto‑inference for _id columns without explicit FK
+        for (const t of tables) {
+            const child = sanitizeName(t.table);
+            const schema = t.schema || 'public';
+            const db = t.db || 'default';
+            for (const colNameRaw of Object.keys(t.columns || {})) {
+                const col = t.columns[colNameRaw];
+                if (col && col.fk)
+                    continue; // already handled
+                if (!colNameRaw.toLowerCase().endsWith('_id'))
+                    continue;
+                const base = colNameRaw.substring(0, colNameRaw.length - 3);
+                if (!base)
+                    continue;
+                const candidatesToCheck = [base, `dim_${base}`, `${base}s`, `dim_${base}s`];
+                let parentKey = null;
+                let matchedSimple = null;
+                for (const cand of candidatesToCheck) {
+                    const found = simpleNameIndex[cand];
+                    if (found && found.length > 0) {
+                        matchedSimple = cand;
+                        if (found.length === 1)
+                            parentKey = found[0];
+                        else {
+                            const prefer = found.find(c => c.includes(`.${schema}.`) || c.includes(`${db}.${schema}.`));
+                            parentKey = prefer || found[0];
+                        }
+                        break;
+                    }
+                }
+                if (parentKey && matchedSimple) {
+                    const parentName = sanitizeName(parentKey.split('.').pop());
+                    if (parentName !== child) {
+                        const label = sanitizeName(colNameRaw);
+                        relLines.push(`  ${parentName} ||--o{ ${child} : "${label}"`);
+                    }
+                }
+            }
+        }
+        if (relLines.length) {
+            erLines.push('');
+            erLines.push('  %% Relationships');
+            erLines.push(...relLines);
+            erLines.push('');
+        }
+        const content = erLines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
+        const outPath = path_1.default.join(erdDir, fileName);
+        fs_1.default.writeFileSync(outPath, content, 'utf8');
+        if (prepend)
+            written.unshift({ name: fileName, content });
+        else
+            written.push({ name: fileName, content });
+    }
+    // Emit per‑schema files
     for (const schemaKey of Object.keys(tablesBySchema)) {
         const parts = schemaKey.split('__');
         const db = parts[0];
         const schema = parts[1] || 'public';
         const tables = tablesBySchema[schemaKey];
-        // Build erDiagram content (including FK edges after tables)
-        const erLines = ['erDiagram'];
-        // collect rel lines separately
-        const relLines = [];
-        for (const t of tables) {
-            const tableName = sanitizeName(t.table);
-            // start table block
-            erLines.push('');
-            erLines.push(`  ${tableName} {`);
-            for (const colNameRaw of Object.keys(t.columns || {})) {
-                const col = t.columns[colNameRaw];
-                // sanitize column name and type
-                const colName = sanitizeName(colNameRaw);
-                // keep simple type token for erDiagram (avoid parentheses/flags that can break parser)
-                const ty = sanitizeTypeForMermaid(col.type || '');
-                // IMPORTANT: do NOT append PK/FK/NOT_NULL/UNIQUE tokens here for erDiagram
-                // (these tokens have caused parse errors in mermaid's erDiagram grammar)
-                erLines.push(`    ${colName} ${ty}`);
-            }
-            // close table block and add an explicit blank line after it
-            erLines.push('  }');
-            erLines.push('');
-        }
-        // Create FK relationships (unchanged logic but emit after a blank line)
-        for (const t of tables) {
-            const childTableName = sanitizeName(t.table);
-            for (const colNameRaw of Object.keys(t.columns || {})) {
-                const col = t.columns[colNameRaw];
-                if (col && col.fk) {
-                    const fkObj = typeof col.fk === 'string' ? { table: col.fk } : col.fk || {};
-                    let fkTableSimple = fkObj.table || fkObj.table_name || fkObj.ref || null;
-                    let fkColumn = fkObj.column || fkObj.col || null;
-                    if (!fkTableSimple) {
-                        const maybe = String(fkObj).trim();
-                        if (maybe && maybe.includes('.')) {
-                            const parts = maybe.split('.');
-                            fkTableSimple = parts[parts.length - 2] || parts[0];
-                            fkColumn = fkColumn || parts[parts.length - 1];
-                        }
-                    }
-                    let parentFullKey = null;
-                    if (fkTableSimple) {
-                        const candidates = simpleNameIndex[String(fkTableSimple).trim()] || [];
-                        if (candidates.length === 1) {
-                            parentFullKey = candidates[0];
-                        }
-                        else if (candidates.length > 1) {
-                            const prefer = candidates.find(c => c.includes(`.${schema}.`) || c.includes(`${db}.${schema}.`));
-                            parentFullKey = prefer || candidates[0];
-                        }
-                    }
-                    if (parentFullKey) {
-                        const parentParts = parentFullKey.split('.');
-                        const parentTableSimple = parentParts[parentParts.length - 1] || fkTableSimple;
-                        const parentTableName = sanitizeName(parentTableSimple);
-                        const left = parentTableName;
-                        const right = childTableName;
-                        // Simplified label: just the FK column name
-                        const label = sanitizeName(fkColumn || 'fk');
-                        relLines.push(`  ${left} ||--o{ ${right} : "${label}"`);
-                    }
-                    else {
-                        const left = sanitizeName(fkTableSimple || 'unknown_parent');
-                        const right = childTableName;
-                        // Simplified label: just the FK column name
-                        const label = sanitizeName(fkColumn || 'fk');
-                        relLines.push(`  ${left} ||--o{ ${right} : "${label}"`);
-                    }
-                }
-            }
-        }
-        // append relationships with a blank line separator
-        if (relLines.length) {
-            erLines.push('');
-            erLines.push('  %% Relationships');
-            for (const rl of relLines)
-                erLines.push(rl);
-            erLines.push('');
-        }
-        const erContent = erLines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
-        const erName = `erd_${db}_${schema}.mmd`;
-        fs_1.default.writeFileSync(path_1.default.join(erdDir, erName), erContent, 'utf8');
-        written.push({ name: erName, content: erContent });
+        const fileName = `erd_${db}_${schema}.mmd`;
+        emitER(tables, fileName);
+    }
+    // Emit global ERD (all tables)
+    const allTables = [];
+    for (const schemaKey of Object.keys(tablesBySchema)) {
+        allTables.push(...tablesBySchema[schemaKey]);
+    }
+    if (allTables.length) {
+        emitER(allTables, 'erd_all.mmd', true);
     }
     return written;
 }
+/** Generate lineage JSON (unchanged) */
 function generateLineageJSON(ast, outDir) {
     fs_1.default.mkdirSync(outDir, { recursive: true });
     const nodes = [];
     const edges = [];
-    const tableEdgesMap = {}; // "srcId|tgtKey" -> set(columns)
-    // 1) Add source nodes and source-column nodes (if mappings reference JSONPath -> create nodes per path)
+    const tableEdgesMap = {};
     for (const sid of Object.keys(ast.sources || {})) {
         const s = ast.sources[sid];
         const srcNodeId = `src:${sid}`;
         nodes.push({ id: srcNodeId, type: 'source', label: `${sid}`, meta: { ...s } });
-        // We don't pre-create all source-field nodes. We'll create source-field nodes per mapping usage.
     }
-    // 2) Add table and column nodes for targets
     for (const tgtKey of Object.keys(ast.targets || {})) {
         const t = ast.targets[tgtKey];
         const tableNodeId = `t:${t.db}.${t.schema}.${t.table}`;
         nodes.push({ id: tableNodeId, type: 'table', label: `${t.db}.${t.schema}.${t.table}`, meta: { db: t.db, schema: t.schema, table: t.table } });
         for (const colName of Object.keys(t.columns || {})) {
-            const col = t.columns[colName];
             const colNodeId = `t:${t.db}.${t.schema}.${t.table}.${colName}`;
-            nodes.push({ id: colNodeId, type: 'column', label: colName, meta: { ...col, table: `${t.db}.${t.schema}.${t.table}` } });
+            nodes.push({ id: colNodeId, type: 'column', label: colName, meta: { ...t.columns[colName], table: `${t.db}.${t.schema}.${t.table}` } });
         }
     }
-    // 3) Walk mappings to produce edges (and create source-field nodes)
     let edgeCounter = 1;
     const makeEdgeId = () => `e${edgeCounter++}`;
     for (const m of ast.mappings || []) {
-        // target: object or raw. We normalized earlier; target should be { db,schema,table,column? } else skip
         const tg = m.target || {};
         const from = m.from || {};
-        const targetTableKey = tg.db && tg.schema && tg.table ? `${tg.db}.${tg.schema}.${tg.table}` : null;
         const targetCol = tg.column || null;
-        // For wildcard/array explosion with 'fields' mapping
         if (targetCol === '*' && from.fields && typeof from.fields === 'object') {
             for (const targetColName of Object.keys(from.fields)) {
-                const srcSpec = from.fields[targetColName]; // could be JSONPath or $index
+                const srcSpec = from.fields[targetColName];
                 const srcNodeId = `src:${from.source_id}:${String(srcSpec)}`;
-                // create source column node if not exists
                 if (!nodes.find(n => n.id === srcNodeId)) {
                     nodes.push({ id: srcNodeId, type: 'source_column', label: String(srcSpec), meta: { source_id: from.source_id, path: srcSpec } });
                 }
-                // create edge to target column
                 const tgtColNode = `t:${tg.db}.${tg.schema}.${tg.table}.${targetColName}`;
                 edges.push({ id: makeEdgeId(), source: srcNodeId, target: tgtColNode, type: 'column_lineage', meta: { transform: from.transform || null, rule: from.rule || null, raw: m.rawTarget || null } });
-                // table-level aggregator
                 const tableEdgeKey = `src:${from.source_id}|t:${tg.db}.${tg.schema}.${tg.table}`;
                 tableEdgesMap[tableEdgeKey] = tableEdgesMap[tableEdgeKey] || new Set();
                 tableEdgesMap[tableEdgeKey].add(targetColName);
             }
             continue;
         }
-        // normal single-column mapping
         if (from.source_id && from.path && targetCol) {
             const srcNodeId = `src:${from.source_id}:${from.path}`;
             if (!nodes.find(n => n.id === srcNodeId)) {
@@ -263,7 +281,7 @@ function generateLineageJSON(ast, outDir) {
             tableEdgesMap[tableEdgeKey].add(targetCol);
             continue;
         }
-        // generated surrogate keys: rule-based (e.g., sequence) -> create special node and table-level edge
+        // rule‑only mappings
         if (m.from && m.from.rule && targetCol) {
             const srcNodeId = `rule:${m.from.rule}`;
             if (!nodes.find(n => n.id === srcNodeId)) {
@@ -276,7 +294,7 @@ function generateLineageJSON(ast, outDir) {
             tableEdgesMap[tableEdgeKey].add(targetCol);
             continue;
         }
-        // other cases — create a 'unknown' mapping edge with raw info
+        // fallback – unknown source
         const srcNodeId = `src:${from.source_id || 'unknown'}:${from.path || 'unknown'}`;
         if (!nodes.find(n => n.id === srcNodeId)) {
             nodes.push({ id: srcNodeId, type: 'source_column', label: from.path || 'unknown', meta: { source_id: from.source_id, path: from.path } });
@@ -288,8 +306,7 @@ function generateLineageJSON(ast, outDir) {
             tableEdgesMap[tableEdgeKey] = tableEdgesMap[tableEdgeKey] || new Set();
             tableEdgesMap[tableEdgeKey].add(targetCol);
         }
-    } // mappings
-    // 4) produce table-level edges array from tableEdgesMap
+    }
     const table_edges = [];
     let teCounter = 1;
     for (const k of Object.keys(tableEdgesMap)) {

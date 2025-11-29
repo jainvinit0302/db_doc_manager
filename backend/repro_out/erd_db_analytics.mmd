@@ -1,0 +1,11 @@
+erDiagram
+
+  posts {
+    id int
+    user_id int
+    title varchar
+  }
+
+  %% Relationships
+  users ||--o{ posts : "fk"
+

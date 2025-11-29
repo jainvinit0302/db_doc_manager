@@ -141,10 +141,18 @@ export function generateMermaidERD(ast: any, erdDir: string) {
               const db = t.db || '';
               const prefer = candidates.find(c => c.includes(`.${schema}.`) || c.includes(`${db}.${schema}.`));
               parentKey = prefer || candidates[0];
+            } else {
+              // Fallback: check if fkTable is a full key
+              const rawFk = String(fkTable).trim();
+              if (ast.targets && ast.targets[rawFk]) {
+                parentKey = rawFk;
+              }
             }
-            const parentName = parentKey ? sanitizeName(parentKey.split('.').pop() as string) : sanitizeName(fkTable);
-            const label = sanitizeName(fkColumn || 'fk');
-            relLines.push(`  ${parentName} ||--o{ ${child} : "${label}"`);
+            if (parentKey || fkTable) {
+              const parentName = parentKey ? sanitizeName(parentKey.split('.').pop() as string) : sanitizeName(fkTable);
+              const label = sanitizeName(fkColumn || 'fk');
+              relLines.push(`  ${parentName} ||--o{ ${child} : "${label}"`);
+            }
           }
         }
       }
