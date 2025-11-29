@@ -11,6 +11,7 @@ import CreateProject from "./pages/CreateProject";
 import DataVisualization from "./pages/DataVisualization";
 import NotFound from "./pages/NotFound";
 import Visualization from "./pages/Visualization";
+import Profile from "./pages/Profile";
 
 import { AuthProvider } from "@/auth/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -60,6 +61,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Visualization />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 }
               />

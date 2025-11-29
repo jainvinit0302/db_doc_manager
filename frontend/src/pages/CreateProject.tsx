@@ -19,7 +19,7 @@ import {
   Edit,
   X,
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,11 +31,12 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
 import { useProject, useProjectActions } from "@/contexts/ProjectContext";
+import { getUserInitials } from "@/lib/utils";
 
 const CreateProject = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   // Get project state from context
   const {
@@ -66,6 +67,15 @@ const CreateProject = () => {
     if (location.state?.defaultName && !projectId && !projectName) {
       updateProjectName(location.state.defaultName);
       setEditing(true); // New projects start in edit mode
+
+      // Reset validation state for new projects to prevent showing stale errors
+      saveValidation({
+        isValidated: false,
+        isValidationPassed: false,
+        validationResult: null,
+        validationError: null,
+        parsedData: null,
+      });
     }
 
     // Restore editing state if returning from visualization
@@ -196,9 +206,13 @@ const CreateProject = () => {
     const mockData = mockParseDSL(dslContent);
 
     try {
+      const token = localStorage.getItem('authToken');
       const res = await fetch("/api/validate", {
         method: "POST",
-        headers: { "Content-Type": "text/yaml; charset=utf-8" },
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Authorization": `Bearer ${token}`
+        },
         body: dslContent,
       });
 
@@ -259,9 +273,13 @@ const CreateProject = () => {
     setValidating(true);
 
     try {
+      const token = localStorage.getItem('authToken');
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "text/yaml; charset=utf-8" },
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Authorization": `Bearer ${token}`
+        },
         body: dslContent,
       });
 
@@ -459,7 +477,7 @@ const CreateProject = () => {
                     aria-label="User menu"
                   >
                     <Avatar>
-                      <AvatarFallback>VJ</AvatarFallback>
+                      <AvatarFallback>{getUserInitials(user?.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -467,16 +485,18 @@ const CreateProject = () => {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">Vinit Jain</p>
+                      <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        vinit.jain@example.com
+                        {user?.email || "user@example.com"}
                       </p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer flex w-full items-center">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>

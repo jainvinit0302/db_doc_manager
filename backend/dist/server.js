@@ -72,6 +72,14 @@ app.post("/api/auth/login", async (req, res) => {
         if (!isValid) {
             return res.status(401).json({ error: "Invalid email or password" });
         }
+        // Track login stats
+        db_1.default.prepare(`
+      INSERT INTO usage_stats (user_id, login_count, last_active)
+      VALUES (?, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
+        login_count = login_count + 1,
+        last_active = CURRENT_TIMESTAMP
+    `).run(user.id);
         const token = (0, auth_1.generateToken)(user.id, user.email);
         return res.json({
             token,
@@ -81,6 +89,29 @@ app.post("/api/auth/login", async (req, res) => {
     catch (error) {
         console.error("Login error:", error);
         return res.status(500).json({ error: "Login failed" });
+    }
+});
+// GET /api/profile - Get user profile and stats
+app.get("/api/profile", auth_1.authMiddleware, (req, res) => {
+    try {
+        const user = db_1.default.prepare("SELECT id, email, name, created_at FROM users WHERE id = ?").get(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        const stats = db_1.default.prepare("SELECT login_count, validation_count, generation_count, last_active FROM usage_stats WHERE user_id = ?").get(req.user.userId);
+        return res.json({
+            user,
+            stats: stats || {
+                login_count: 0,
+                validation_count: 0,
+                generation_count: 0,
+                last_active: user.created_at
+            }
+        });
+    }
+    catch (error) {
+        console.error("Get profile error:", error);
+        return res.status(500).json({ error: "Failed to get profile" });
     }
 });
 // GET /api/auth/me - Get current user
@@ -211,7 +242,8 @@ app.delete("/api/projects/:id", auth_1.authMiddleware, (req, res) => {
 });
 // ============ DSL Validation & Generation Endpoints ============
 // /api/validate : parse YAML, run JSON-schema (AJV) + referential validation
-app.post("/api/validate", (req, res) => {
+// /api/validate : parse YAML, run JSON-schema (AJV) + referential validation
+app.post("/api/validate", auth_1.authMiddleware, (req, res) => {
     try {
         const yamlText = typeof req.body === "string"
             ? req.body
@@ -256,6 +288,16 @@ app.post("/api/validate", (req, res) => {
         const ast = (0, parser_1.normalize)(aggregated);
         const { errors: refErrors, warnings: refWarnings } = (0, validator_1.referentialValidate)(ast);
         const valid = ajvValid && (!refErrors || refErrors.length === 0);
+        // Track validation stats
+        if (req.user) {
+            db_1.default.prepare(`
+        INSERT INTO usage_stats (user_id, validation_count, last_active)
+        VALUES (?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+          validation_count = validation_count + 1,
+          last_active = CURRENT_TIMESTAMP
+      `).run(req.user.userId);
+        }
         return res.json({
             valid,
             ajvErrors,
@@ -269,7 +311,8 @@ app.post("/api/validate", (req, res) => {
     }
 });
 // /api/generate : authoritative generate — CSV, mermaid .mmd, lineage JSON
-app.post("/api/generate", (req, res) => {
+// /api/generate : authoritative generate — CSV, mermaid .mmd, lineage JSON
+app.post("/api/generate", auth_1.authMiddleware, (req, res) => {
     try {
         const yamlText = typeof req.body === "string"
             ? req.body
@@ -353,6 +396,16 @@ app.post("/api/generate", (req, res) => {
         catch (errSql) {
             console.error("SQL generation error:", errSql);
             sql = { error: errSql.message };
+        }
+        // Track generation stats
+        if (req.user) {
+            db_1.default.prepare(`
+        INSERT INTO usage_stats (user_id, generation_count, last_active)
+        VALUES (?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+          generation_count = generation_count + 1,
+          last_active = CURRENT_TIMESTAMP
+      `).run(req.user.userId);
         }
         // Respond with all artifacts
         return res.json({

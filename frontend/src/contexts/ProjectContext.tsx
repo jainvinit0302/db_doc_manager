@@ -105,6 +105,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             metadata: data.metadata
         });
 
+        // Clear localStorage to prevent stale state from interfering
+        localStorage.removeItem('dbdoc_projectContext');
+
         setState({
             projectId: data.projectId,
             projectName: data.projectName,

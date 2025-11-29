@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Database, Plus, Search, FolderOpen, Trash2, LogOut, User } from "lucide-react";
 import { ProjectCard } from "@/components/ProjectCard";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { useProjectActions } from "@/contexts/ProjectContext";
+import { getUserInitials } from "@/lib/utils";
 
 interface Project {
   id: number;
@@ -176,7 +177,7 @@ const Dashboard = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar>
-                    <AvatarFallback>VJ</AvatarFallback>
+                    <AvatarFallback>{getUserInitials(user?.name)}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -190,9 +191,11 @@ const Dashboard = () => {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile" className="cursor-pointer flex w-full items-center">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>

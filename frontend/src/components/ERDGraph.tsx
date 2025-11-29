@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -12,6 +12,7 @@ import ReactFlow, {
     Position,
     NodeProps,
     Panel,
+    ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
@@ -21,6 +22,7 @@ import { Database, Key, AlertCircle, Check, Hash } from 'lucide-react';
 interface ERDGraphProps {
     data: Record<string, any>; // The 'erd' object from API (ast.targets)
     className?: string;
+    active?: boolean;
 }
 
 // --- Custom Node Component ---
@@ -102,9 +104,20 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     return { nodes: layoutedNodes, edges };
 };
 
-export default function ERDGraph({ data, className }: ERDGraphProps) {
+export default function ERDGraph({ data, className, active }: ERDGraphProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+
+    // Force fitView when tab becomes active
+    useEffect(() => {
+        if (active && rfInstance) {
+            // Small timeout to allow DOM to settle if display changed from none
+            setTimeout(() => {
+                rfInstance.fitView({ duration: 200 });
+            }, 50);
+        }
+    }, [active, rfInstance]);
 
     useEffect(() => {
         if (!data) {
@@ -255,7 +268,12 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
         setNodes(layouted.nodes);
         setEdges(layouted.edges);
 
-    }, [data, setNodes, setEdges]);
+        // Also fit view when data changes
+        if (rfInstance) {
+            setTimeout(() => rfInstance.fitView({ duration: 200 }), 50);
+        }
+
+    }, [data, setNodes, setEdges, rfInstance]);
 
     return (
         <div className={className}>
@@ -266,6 +284,7 @@ export default function ERDGraph({ data, className }: ERDGraphProps) {
                 onEdgesChange={onEdgesChange}
                 nodeTypes={nodeTypes}
                 fitView
+                onInit={setRfInstance}
                 attributionPosition="bottom-right"
             >
                 <Background color="#e2e8f0" gap={16} />

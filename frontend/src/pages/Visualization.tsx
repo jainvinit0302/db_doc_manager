@@ -346,6 +346,7 @@ const Visualization: React.FC = () => {
         <ERDGraph
           data={erdData}
           className="w-full h-full"
+          active={activeTab === "erd"}
         />
       </div>
     );
