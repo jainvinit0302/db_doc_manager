@@ -586,28 +586,23 @@ function generateSourcesPage(ast: NormalizedAST, outDir: string) {
 }
 
 function generateMappingsPage(ast: NormalizedAST, outDir: string) {
-    const mappingRows = ast.mappings.map((mapping: any) => {
-        const target = `${mapping.target.db}.${mapping.target.schema}.${mapping.target.table}.${mapping.target.column}`;
+    const mappingRows = ast.mappings.map((m: any) => {
+        const sourceDisplay = m.from?.source_id
+            ? `<code>${escapeHtml(m.from.source_id)}:${escapeHtml(m.from.path || '')}</code>`
+            : (m.from?.rule ? `<code>RULE: ${escapeHtml(m.from.rule)}</code>` : '-');
 
-        let source = '-';
-        if (mapping.from?.source_id && mapping.from?.path) {
-            source = `<code>${escapeHtml(mapping.from.source_id)}:${escapeHtml(mapping.from.path)}</code>`;
-        } else if (mapping.from?.rule) {
-            source = `<code>${escapeHtml(mapping.from.rule)}</code>`;
-        } else if (mapping.from?.source_id) {
-            source = `<code>${escapeHtml(mapping.from.source_id)}</code>`;
-        }
-
-        const transform = mapping.transform
-            ? `<code>${escapeHtml(JSON.stringify(mapping.transform))}</code>`
+        const transformDisplay = m.from?.transform
+            ? `<code>${escapeHtml(m.from.transform)}</code>`
             : '-';
+
+        const notesDisplay = m.notes ? escapeHtml(m.notes) : '-';
 
         return `
       <tr>
-        <td><code>${escapeHtml(target)}</code></td>
-        <td>${source}</td>
-        <td>${transform}</td>
-        <td>${escapeHtml(mapping.notes || '-')}</td>
+        <td><code>${escapeHtml(m.rawTarget)}</code></td>
+        <td>${sourceDisplay}</td>
+        <td>${transformDisplay}</td>
+        <td>${notesDisplay}</td>
       </tr>
     `;
     }).join('');
