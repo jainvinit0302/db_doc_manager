@@ -1,0 +1,44 @@
+# GitLab CI Example for DBDocManager
+
+# This is an example GitLab CI configuration for validating DSL files
+# Place this in your .gitlab-ci.yml file
+
+stages:
+  - validate
+  - test
+
+validate-dsl:
+  stage: validate
+  image: node:18
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run validate:ci
+  only:
+    changes:
+      - "**.yaml"
+      - "**.yml"
+      - "**.dbdoc"
+      - "backend/src/**"
+      - "backend/schemas/**"
+  tags:
+    - docker
+
+# Optional: Generate documentation
+generate-docs:
+  stage: test
+  image: node:18
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run generate
+  artifacts:
+    paths:
+      - backend/docs/
+    expire_in: 1 week
+  only:
+    - main
+  tags:
+    - docker

@@ -1,5 +1,6 @@
 // backend/src/validator.ts
 import { NormalizedAST } from './parser';
+import { validateTransform } from './transforms';
 
 export type ReferentialResult = {
   errors: string[];
@@ -42,6 +43,27 @@ export function referentialValidate(ast: NormalizedAST): ReferentialResult {
     if (from.source_id) {
       if (!sourceIds.has(from.source_id)) {
         errors.push(`Mapping for target "${m.rawTarget}" references unknown source_id "${from.source_id}"`);
+      }
+    }
+
+    // 1.5 Validate transforms (if present)
+    if (from.transform) {
+      const transformError = validateTransform(from.transform);
+      if (transformError) {
+        errors.push(`Mapping "${m.rawTarget}": ${transformError}`);
+      }
+    }
+
+    // Validate rule-based transforms
+    if (from.rule) {
+      // Check if rule contains a transform function
+      const ruleStr = String(from.rule);
+      if (ruleStr.includes('(') && ruleStr.includes(')')) {
+        const transformError = validateTransform(ruleStr);
+        if (transformError) {
+          // Only warn for rules since they might be complex expressions
+          warnings.push(`Mapping "${m.rawTarget}" rule may contain invalid transform: ${transformError}`);
+        }
       }
     }
 

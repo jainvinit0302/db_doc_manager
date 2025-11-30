@@ -1,6 +1,6 @@
 {
   "name": "dbdoc-manager",
-  "version": "0.1.0",
+  "version": "2.2.0",
   "description": "DSL-driven documentation & lineage for relationalized data models",
   "main": "dist/cli.js",
   "bin": {
@@ -9,22 +9,31 @@
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "migrate": "tsx src/migrate.ts",
+    "validate": "tsx src/cli.ts validate --dir input.yaml",
+    "validate:ci": "tsx src/cli.ts validate --dir input.yaml --strict",
+    "generate": "tsx src/cli.ts generate --dir input.yaml --out docs",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
-  "author": "Your Team",
+  "author": "IIITH Students - Vinit Jain, Rinkesh Verma, Kedar Dalvi, Jagadish Kollu, Suresh Kumar",
   "license": "MIT",
   "dependencies": {
     "ajv": "^8.12.0",
     "ajv-formats": "^3.0.1",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.4.6",
-    "commander": "^10.0.0",
+    "chalk": "^5.6.2",
+    "commander": "^10.0.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "glob": "^10.2.7",
     "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mkdirp": "^3.0.1"
+    "mkdirp": "^3.0.1",
+    "ora": "^9.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -35,9 +44,11 @@
     "@types/jest": "^29.5.2",
     "@types/js-yaml": "^4.0.9",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20.3.1",
+    "@types/node": "^20.19.25",
     "jest": "^29.6.0",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
+    "tsx": "^4.7.0",
     "typescript": "^5.1.3"
   }
 }

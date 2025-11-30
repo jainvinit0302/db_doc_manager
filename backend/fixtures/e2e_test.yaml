@@ -1,0 +1,79 @@
+project: "e2e_test_project"
+version: "2.0"
+owners:
+  - name: "Data Team"
+    email: "data@company.com"
+
+sources:
+  - id: mongo_orders
+    kind: mongodb
+    db: orderdb
+    collection: orders
+    description: "MongoDB orders collection"
+
+  - id: pg_customers
+    kind: postgres
+    db: customerdb
+    table: customers
+    description: "PostgreSQL customers table"
+
+targets:
+  - db: analytics
+    engine: postgres
+    schema: reporting
+    tables:
+      - name: order_summary
+        description: "Order summary report"
+        columns:
+          - name: order_id
+            type: INTEGER
+            pk: true
+            description: "Order identifier"
+          
+          - name: customer_email
+            type: VARCHAR(255)
+            not_null: true
+            description: "Customer email address"
+          
+          - name: order_total
+            type: DECIMAL(10,2)
+            not_null: true
+            description: "Order total amount"
+          
+          - name: order_date
+            type: DATE
+            not_null: true
+            description: "Order date"
+          
+          - name: created_at
+            type: TIMESTAMP
+            default: now()
+            description: "Record creation time"
+
+mappings:
+  - target: analytics.reporting.order_summary.order_id
+    from:
+      source_id: mongo_orders
+      path: $.order.id
+    notes: "Direct mapping from order ID"
+
+  - target: analytics.reporting.order_summary.customer_email
+    from:
+      source_id: pg_customers
+      path: $.email
+      transform: lower()
+    notes: "Lowercase email for consistency"
+
+  - target: analytics.reporting.order_summary.order_total
+    from:
+      source_id: mongo_orders
+      path: $.order.total
+      transform: round(2)
+    notes: "Round to 2 decimal places"
+
+  - target: analytics.reporting.order_summary.order_date
+    from:
+      source_id: mongo_orders
+      path: $.order.created_at
+      transform: formatDate("YYYY-MM-DD")
+    notes: "Format date consistently"

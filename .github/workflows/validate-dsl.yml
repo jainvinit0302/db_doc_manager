@@ -1,0 +1,51 @@
+name: Validate DBDoc DSL
+
+on:
+  pull_request:
+    paths:
+      - '**.yaml'
+      - '**.yml'
+      - '**.dbdoc'
+      - 'backend/src/**'
+      - 'backend/schemas/**'
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  validate-dsl:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Validate DSL files
+        run: |
+          cd backend
+          npm run validate:ci
+
+      - name: Comment validation results
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **DSL Validation Failed**\n\nPlease check the logs and fix the validation errors in your DSL files.'
+            })

@@ -9,6 +9,7 @@ import cors from "cors";
 import { validateStructure, normalize } from "./parser";
 import { generateMermaidERD, writeMappingCSV, generateLineageJSON } from "./generator";
 import { generateSQL, generateDialects } from "./sql_generator";
+import { generateStaticSite } from "./doc_generator";
 import { referentialValidate } from "./validator";
 import db from "./db";
 import { generateToken, hashPassword, comparePassword, authMiddleware, AuthRequest } from "./auth";
