@@ -472,7 +472,7 @@ const DataVisualization: React.FC = () => {
       {/* Main Layout */}
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar */}
-        <div className="w-64 border-r border-border bg-muted/30">
+        <div className="w-64 border-r border-border bg-muted/30 shrink-0">
           <div className="p-4">
             <h2 className="font-medium text-sm text-muted-foreground mb-4">VIEWS</h2>
             <nav className="space-y-1">
@@ -502,7 +502,7 @@ const DataVisualization: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">{tabs.find((t) => t.id === activeTab)?.label}</h2>
@@ -546,7 +546,7 @@ const DataVisualization: React.FC = () => {
 
             {/* ER Diagram */}
             {activeTab === "er-diagram" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
+              <div className="w-full h-full p-4 bg-card border border-border rounded-lg flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-medium">Entity Relationship Diagram</h3>
                   <div className="flex gap-2">
@@ -562,7 +562,7 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto bg-white rounded p-4">
+                <div className="flex-1 min-h-0 overflow-auto bg-white rounded p-4">
                   {mermaids && mermaids.length > 0 ? (
                     <div ref={erdContainerRef} id="erd-viz" />
                   ) : parsedTables.length > 0 ? (
@@ -593,7 +593,7 @@ const DataVisualization: React.FC = () => {
 
             {/* Lineage */}
             {activeTab === "lineage" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
+              <div className="w-full h-full p-4 bg-card border border-border rounded-lg flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-medium">Data Lineage</h3>
                   <div className="flex items-center gap-2">
@@ -602,7 +602,7 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto">
                   {lineage ? (
                     <LineageGraph lineage={lineage} level={lineageLevel} />
                   ) : (
@@ -614,7 +614,7 @@ const DataVisualization: React.FC = () => {
 
             {/* Mappings/CSV */}
             {activeTab === "mappings" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
+              <div className="w-full h-full p-4 bg-card border border-border rounded-lg flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-medium">Mappings / CSV</h3>
                   <div>
@@ -624,7 +624,7 @@ const DataVisualization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="h-[520px] overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto">
                   {csvTable ? (
                     <table className="w-full text-sm border-collapse">
                       <thead className="sticky top-0 bg-white">
@@ -653,7 +653,7 @@ const DataVisualization: React.FC = () => {
 
             {/* Databases Tab */}
             {activeTab === "databases" && (
-              <div className="w-full h-full p-4 bg-card border border-border rounded-lg">
+              <div className="w-full h-full p-4 bg-card border border-border rounded-lg flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-4">
                     <h3 className="text-lg font-medium">Generated Database Scripts</h3>
@@ -711,7 +711,7 @@ const DataVisualization: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-                <div className="h-[520px] overflow-auto bg-muted/30 border border-border rounded p-4 font-mono text-sm whitespace-pre">
+                <div className="flex-1 min-h-0 overflow-auto bg-muted/30 border border-border rounded p-4 font-mono text-sm whitespace-pre">
                   {sqlData
                     ? (typeof sqlData === 'string' ? sqlData : (sqlData[activeDialect] || "No code generated for this dialect."))
                     : <span className="text-muted-foreground">No SQL generated.</span>}

@@ -21,78 +21,78 @@ const style: any = [
   {
     selector: 'node[type="source"]',
     style: {
-      "background-color": "#f59e0b", // amber-500
-      "color": "#fff",
+      "background-color": "#fef08a", // yellow-200
+      "color": "#713f12", // yellow-900
       label: "data(label)",
       shape: "round-rectangle",
       "text-valign": "center",
       "text-halign": "center",
       "width": "label",
-      "padding": "12px",
+      "padding": "16px", // increased from 12px
       "font-weight": "bold",
-      "border-width": 1,
-      "border-color": "#d97706",
+      "border-width": 2,
+      "border-color": "#eab308", // yellow-500
     },
   },
   {
     selector: 'node[type="table"]',
     style: {
-      "background-color": "#3b82f6", // blue-500
-      color: "#fff",
+      "background-color": "#bfdbfe", // blue-200
+      color: "#1e3a8a", // blue-900
       label: "data(label)",
       "text-valign": "center",
       "text-halign": "center",
       shape: "round-rectangle",
       "width": "label",
-      "padding": "12px",
+      "padding": "16px", // increased from 12px
       "font-weight": "bold",
-      "border-width": 1,
-      "border-color": "#2563eb",
+      "border-width": 2,
+      "border-color": "#3b82f6", // blue-500
     },
   },
   {
     selector: 'node[type="column"]',
     style: {
-      "background-color": "#10b981", // emerald-500
-      "color": "#fff",
+      "background-color": "#99f6e4", // teal-200
+      "color": "#134e4a", // teal-900
       label: "data(label)",
       shape: "ellipse",
       "text-valign": "center",
       "text-halign": "center",
       "width": "label",
-      "padding": "8px",
-      "border-width": 1,
-      "border-color": "#059669",
+      "padding": "12px", // increased from 8px
+      "border-width": 2,
+      "border-color": "#14b8a6", // teal-500
     },
   },
   {
     selector: 'node[type="source_column"]',
     style: {
-      "background-color": "#fcd34d", // amber-300
-      "color": "#78350f", // amber-900
+      "background-color": "#fed7aa", // orange-200
+      "color": "#7c2d12", // orange-900
       label: "data(label)",
       shape: "ellipse",
       "text-valign": "center",
       "text-halign": "center",
       "width": "label",
-      "padding": "8px",
-      "border-width": 1,
-      "border-color": "#d97706",
+      "padding": "12px", // increased from 8px
+      "border-width": 2,
+      "border-color": "#f97316", // orange-500
     },
   },
   {
     selector: 'node[type="rule"]',
     style: {
-      "background-color": "#6366f1", // indigo-500
-      "color": "#fff",
+      "background-color": "#e9d5ff", // purple-200
+      "color": "#581c87", // purple-900
       label: "data(label)",
       shape: "diamond",
       "text-valign": "center",
       "text-halign": "center",
       "width": "label",
-      "padding": "8px",
-      "border-width": 1,
-      "border-color": "#4f46e5",
+      "padding": "12px", // increased from 8px
+      "border-width": 2,
+      "border-color": "#a855f7", // purple-500
     },
   },
   {
