@@ -148,9 +148,6 @@ function generateMongoDB(ast: NormalizedAST): string {
     const statements: string[] = [];
     const tableKeys = Object.keys(ast.targets).sort();
 
-    statements.push(`// MongoDB Schema Validation Script`);
-    statements.push(`// Run this in mongosh or a driver`);
-
     for (const key of tableKeys) {
         const t = ast.targets[key];
         const collectionName = t.table;
