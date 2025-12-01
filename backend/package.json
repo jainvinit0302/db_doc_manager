@@ -11,9 +11,9 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "migrate": "tsx src/migrate.ts",
-    "validate": "tsx src/cli.ts validate --dir input.yaml",
-    "validate:ci": "tsx src/cli.ts validate --dir input.yaml --strict",
-    "generate": "tsx src/cli.ts generate --dir input.yaml --out docs",
+    "validate": "tsx src/cli.ts validate input.yaml",
+    "validate:ci": "tsx src/cli.ts validate input.yaml --strict",
+    "generate": "tsx src/cli.ts generate input.yaml --out docs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

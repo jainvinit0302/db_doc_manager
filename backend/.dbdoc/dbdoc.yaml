@@ -1,0 +1,108 @@
+project: lineage_stress_test
+version: "3.1"
+owners: ["lineage-team@enterprise.com"]
+tags: [lineage, deep, stress]
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: dim
+    tables:
+      - name: dim_stage_01
+        columns:
+          - { name: id, type: STRING, pk: true }
+          - { name: v1, type: STRING }
+      - name: dim_stage_02
+        columns:
+          - { name: id, type: STRING, pk: true }
+          - { name: v2, type: STRING }
+      - name: dim_stage_03
+        columns:
+          - { name: id, type: STRING, pk: true }
+          - { name: v3, type: STRING }
+      - name: dim_stage_04
+        columns:
+          - { name: id, type: STRING, pk: true }
+          - { name: v4, type: STRING }
+      - name: dim_stage_05
+        columns:
+          - { name: id, type: STRING, pk: true }
+          - { name: v5, type: STRING }
+
+  - db: analytics
+    engine: snowflake
+    schema: curated
+    tables:
+      - name: final_chain
+        columns:
+          - { name: id, type: STRING }
+          - { name: final_value, type: STRING }
+          - { name: chain_depth, type: INTEGER }
+
+sources:
+  - id: src_root
+    kind: mongodb
+    conn: atlas
+    db: raw
+    collection: root
+
+mappings:
+  # depth 1: root -> stage_01
+  - target: dw.dim.dim_stage_01.id
+    from:
+      source_id: src_root
+      path: $.id
+
+  - target: dw.dim.dim_stage_01.v1
+    from:
+      source_id: src_root
+      path: $.value_v1
+
+  # depth 2: stage_01 -> stage_02 (via rule referencing previous stage)
+  - target: dw.dim.dim_stage_02.id
+    from:
+      rule: "lookup('dim_stage_01.id', src_root.id)"
+
+  - target: dw.dim.dim_stage_02.v2
+    from:
+      rule: "transform_upper(lookup('dim_stage_01.v1', src_root.id))"
+
+  # depth 3:
+  - target: dw.dim.dim_stage_03.id
+    from:
+      rule: "lookup('dim_stage_02.id', src_root.id)"
+
+  - target: dw.dim.dim_stage_03.v3
+    from:
+      rule: "concat(lookup('dim_stage_02.v2', src_root.id),'_x')"
+
+  # depth 4:
+  - target: dw.dim.dim_stage_04.id
+    from:
+      rule: "lookup('dim_stage_03.id', src_root.id)"
+
+  - target: dw.dim.dim_stage_04.v4
+    from:
+      rule: "hash(lookup('dim_stage_03.v3', src_root.id))"
+
+  # depth 5:
+  - target: dw.dim.dim_stage_05.id
+    from:
+      rule: "lookup('dim_stage_04.id', src_root.id)"
+
+  - target: dw.dim.dim_stage_05.v5
+    from:
+      rule: "concat(lookup('dim_stage_04.v4', src_root.id),'_end')"
+
+  # final curated table reads last stage and assembles chain depth
+  - target: analytics.curated.final_chain.id
+    from:
+      rule: "lookup('dim_stage_05.id', src_root.id)"
+
+  - target: analytics.curated.final_chain.final_value
+    from:
+      rule: "concat(lookup('dim_stage_05.v5', src_root.id),'|', src_root.meta.tag)"
+
+  - target: analytics.curated.final_chain.chain_depth
+    from:
+      rule: "constant(5)"
