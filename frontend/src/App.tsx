@@ -12,6 +12,7 @@ import DataVisualization from "./pages/DataVisualization";
 import NotFound from "./pages/NotFound";
 import Visualization from "./pages/Visualization";
 import Profile from "./pages/Profile";
+import Landing from "./pages/Landing";
 
 import { AuthProvider } from "@/auth/AuthProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -28,7 +29,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <Routes>
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
 
