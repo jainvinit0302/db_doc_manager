@@ -87,6 +87,27 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
   - Orphan source detection
   - Transform syntax validation
 
+#### 🔍 **Database Introspection** (New in v2.2)
+- **PostgreSQL:** Connect to existing DB and auto-generate DSL
+- **MongoDB:** Sample documents to infer schema and types
+- **CLI Integration:** One-command DSL generation
+- **Time Saver:** Reduces manual DSL writing by 90%
+
+#### 🛠️ **Enhanced CLI**
+- **init:** Scaffold new projects
+- **validate:** Check syntax with colored output
+- **generate:** Build static HTML docs & artifacts
+- **serve:** Host local documentation server
+- **introspect:** Reverse engineer databases
+- **list:** Explore available transforms and metadata
+
+#### ⚡ **Transform Library**
+- **String:** `lower`, `upper`, `trim`, `concat`, `substring`
+- **Date:** `parseDate`, `formatDate`
+- **Math:** `round`, `abs`
+- **Utility:** `coalesce`, `default`, `cast`
+- **Extensible:** Easy to add custom functions
+
 #### 🎨 **Visualizations**
 
 **ER Diagrams (React Flow)**
@@ -303,7 +324,36 @@ npm run dev
 
 Frontend will run at `http://localhost:5173`
 
-### Quick Start Guide
+### Quick Start Guide (CLI)
+
+1. **Initialize Project**
+   ```bash
+   dbdoc init my-project
+   cd my-project
+   ```
+
+2. **Introspect Database (Optional)**
+   ```bash
+   # Auto-generate DSL from existing DB
+   dbdoc introspect postgres "postgresql://user:pass@localhost/mydb" --out schema.yaml
+   ```
+
+3. **Validate DSL**
+   ```bash
+   dbdoc validate schema.yaml
+   ```
+
+4. **Generate Documentation**
+   ```bash
+   dbdoc generate schema.yaml --out docs
+   ```
+
+5. **Serve Documentation**
+   ```bash
+   dbdoc serve --dir docs
+   ```
+
+### Quick Start Guide (Web UI)
 
 1. **Sign Up:** Create an account at `/signup`
 2. **Create Project:** Click "New Project" on dashboard

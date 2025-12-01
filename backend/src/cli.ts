@@ -11,6 +11,8 @@ import { referentialValidate } from './validator';
 import { writeMappingCSV, generateMermaidERD, generateLineageJSON } from './generator';
 import { generateStaticSite } from './doc_generator';
 import { getAvailableTransforms } from './transforms';
+import { introspectPostgreSQL } from './introspection/postgres';
+import { introspectMongoDB } from './introspection/mongodb';
 
 const program = new Command();
 
@@ -537,4 +539,43 @@ program
   .description('List tables, sources, or transforms')
   .action(listCommand);
 
-program.parse();
+program
+  .command('introspect')
+  .description('Introspect a database and generate DSL')
+  .argument('<type>', 'Database type (postgres, mongodb)')
+  .argument('<connection>', 'Connection string')
+  .option('-o, --out <file>', 'Output file path', 'introspected.yaml')
+  .option('--schema <schema>', 'Schema to introspect (PostgreSQL only)', 'public')
+  .option('--sample <n>', 'Number of documents to sample (MongoDB only)', '100')
+  .action(async (type, connection, options) => {
+    try {
+      console.log(chalk.blue(`🔍 Introspecting ${type} database...`));
+
+      let dsl = '';
+
+      if (type === 'postgres') {
+        dsl = await introspectPostgreSQL({
+          connectionString: connection,
+          schema: options.schema
+        });
+      } else if (type === 'mongodb') {
+        dsl = await introspectMongoDB({
+          connectionString: connection,
+          sampleSize: parseInt(options.sample)
+        });
+      } else {
+        console.error(chalk.red(`Error: Unsupported database type "${type}". Use 'postgres' or 'mongodb'.`));
+        process.exit(1);
+      }
+
+      fs.writeFileSync(options.out, dsl);
+      console.log(chalk.green(`✅ DSL generated successfully at ${options.out}`));
+
+    } catch (error: any) {
+      console.error(chalk.red('Error during introspection:'));
+      console.error(chalk.red(error.message));
+      process.exit(1);
+    }
+  });
+
+program.parse(process.argv);
