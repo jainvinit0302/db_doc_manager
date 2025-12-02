@@ -331,3 +331,6 @@ mappings:
     from:
       source_id: snowflake_catalog
       path: $.system_timestamp
+
+
+

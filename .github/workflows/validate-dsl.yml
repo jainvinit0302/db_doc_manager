@@ -3,11 +3,11 @@ name: Validate DBDoc DSL
 on:
   pull_request:
     paths:
-      - '**.yaml'
-      - '**.yml'
-      - '**.dbdoc'
-      - 'backend/src/**'
-      - 'backend/schemas/**'
+      - "**.yaml"
+      - "**.yml"
+      - "**.dbdoc"
+      - "backend/src/**"
+      - "backend/schemas/**"
   push:
     branches:
       - main
@@ -18,7 +18,7 @@ on:
 jobs:
   validate-dsl:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,8 +26,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
