@@ -1,0 +1,338 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ER Diagram - unnamed_project</title>
+  <style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background: #f5f5f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem 0;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+header h1 {
+  margin-bottom: 0.5rem;
+}
+
+header .subtitle {
+  opacity: 0.9;
+  font-size: 1.1rem;
+}
+
+nav {
+  background: white;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+nav a {
+  color: #667eea;
+  text-decoration: none;
+  margin-right: 1.5rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+nav a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+.card {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+}
+
+.card h2 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.card h3 {
+  color: #4a5568;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+thead {
+  background: #f7fafc;
+}
+
+th {
+  text-align: left;
+  padding: 0.75rem;
+  font-weight: 600;
+  color: #4a5568;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+tbody tr:hover {
+  background: #f7fafc;
+}
+
+code {
+  background: #f7fafc;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #e53e3e;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+}
+
+.badge-pk {
+  background: #fbd38d;
+  color: #744210;
+}
+
+.badge-fk {
+  background: #90cdf4;
+  color: #2c5282;
+}
+
+.badge-unique {
+  background: #9ae6b4;
+  color: #22543d;
+}
+
+.badge-not-null {
+  background: #fc8181;
+  color: #742a2a;
+}
+
+.search-box {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.search-box:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.table-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.table-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.table-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.table-card h3 {
+  margin: 0 0 0.5rem 0;
+}
+
+.table-card a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.table-card a:hover {
+  color: #764ba2;
+}
+
+.table-card p {
+  color: #718096;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.table-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #a0aec0;
+}
+
+footer {
+  text-align: center;
+  padding: 2rem 0;
+  color: #718096;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+  
+  .table-list {
+    grid-template-columns: 1fr;
+  }
+  
+  table {
+    font-size: 0.9rem;
+  }
+  
+  th, td {
+    padding: 0.5rem;
+  }
+}
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+  </script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>📐 Entity Relationship Diagram</h1>
+      <p class="subtitle">unnamed_project - Visual Schema Structure</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav>
+      <a href="index.html">🏠 Home</a>
+      <a href="tables/index.html">📊 Tables</a>
+      <a href="sources.html">🔌 Sources</a>
+      <a href="mappings.html">🔗 Mappings</a>
+      <a href="erd.html">📐 ER Diagram</a>
+      <a href="lineage.html">🕸️ Lineage Graph</a>
+    </nav>
+
+    <div class="card">
+      <h2>Database Schema Diagram</h2>
+      <div class="mermaid">
+erDiagram
+
+  dim_customer {
+    customer_sk bigint
+    customer_id string
+    first_name string
+    last_name string
+    email string
+    phone string
+    country_code string
+    created_at timestamp
+    updated_at timestamp
+  }
+
+  dim_product {
+    product_sk bigint
+    product_id string
+    name string
+    category string
+    brand string
+    created_at timestamp
+  }
+
+  fct_order {
+    order_sk bigint
+    order_id string
+    customer_sk bigint
+    product_sk bigint
+    order_amount decimal_14
+    currency string
+    order_ts timestamp
+    payment_type string
+    is_chargeback boolean
+  }
+
+  txn_enriched_v2 {
+    order_id string
+    customer_id string
+    product_id string
+    amount_usd float
+    local_currency string
+    region string
+    loyalty_tier string
+    is_high_value boolean
+    ingestion_ts timestamp
+    source_system string
+    ingest_origin string
+  }
+
+  fx_rates {
+    currency string
+    usd_rate float
+    as_of_ts timestamp
+  }
+
+  %% Relationships
+  dim_customer ||--o{ fct_order : "customer_sk"
+  dim_product ||--o{ fct_order : "product_sk"
+  dim_customer ||--o{ txn_enriched_v2 : "customer_id"
+  dim_product ||--o{ txn_enriched_v2 : "product_id"
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Generated by <strong>DBDocManager</strong></p>
+  </footer>
+</body>
+</html>
+  
