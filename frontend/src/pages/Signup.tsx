@@ -7,12 +7,14 @@ import { Database } from "lucide-react";
 
 const Signup = () => {
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -28,8 +30,35 @@ const Signup = () => {
       return;
     }
 
-    // For now, just navigate to dashboard
-    navigate("/dashboard");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Signup failed");
+        setLoading(false);
+        return;
+      }
+
+      // Redirect to login page on success
+      navigate("/login", {
+        state: { message: "Account created successfully! Please log in." }
+      });
+    } catch (err: any) {
+      setError(err.message === "Failed to fetch"
+        ? "Unable to reach server. Is the backend running?"
+        : "Signup failed. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,6 +79,19 @@ const Signup = () => {
           {/* Signup Form */}
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="John Doe"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="bg-background/50"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -59,6 +101,7 @@ const Signup = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="bg-background/50"
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -71,6 +114,7 @@ const Signup = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="bg-background/50"
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -83,17 +127,18 @@ const Signup = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 className="bg-background/50"
+                disabled={loading}
               />
             </div>
-            
+
             {error && (
-              <div className="text-sm text-red-500 text-center">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
                 {error}
               </div>
             )}
 
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
 

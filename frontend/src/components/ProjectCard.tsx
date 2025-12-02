@@ -8,9 +8,16 @@ interface ProjectCardProps {
     lastUpdated: string;
   };
   onDelete: (id: string) => void;
+<<<<<<< HEAD
 }
 
 export const ProjectCard = ({ project, onDelete }: ProjectCardProps) => {
+=======
+  onOpen: (id: string) => void;
+}
+
+export const ProjectCard = ({ project, onDelete, onOpen }: ProjectCardProps) => {
+>>>>>>> monday
   return (
     <div className="glass-card rounded-xl p-6 space-y-4 hover-lift">
       <div className="flex items-start justify-between">
@@ -24,7 +31,11 @@ export const ProjectCard = ({ project, onDelete }: ProjectCardProps) => {
       </div>
 
       <div className="flex gap-2 pt-2">
+<<<<<<< HEAD
         <Button variant="default" className="flex-1">
+=======
+        <Button variant="default" className="flex-1" onClick={() => onOpen(project.id)}>
+>>>>>>> monday
           <FolderOpen className="w-4 h-4 mr-2" />
           Open
         </Button>

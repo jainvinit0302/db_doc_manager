@@ -1,0 +1,87 @@
+# Transform Examples - Sample DSL
+
+project: "ecommerce_dw"
+version: "1.0"
+
+sources:
+  - id: mongo_users
+    kind: mongodb
+    db: shop
+    collection: users
+
+  - id: api_orders
+    kind: api
+    endpoint: https://api.example.com/orders
+
+targets:
+  - db: dw
+    engine: postgres
+    schema: dim
+    tables:
+      - name: dim_customer
+        columns:
+          - name: customer_id
+            type: INTEGER
+            pk: true
+          
+          # Transform: lowercase email
+          - name: email
+            type: VARCHAR(255)
+            not_null: true
+            unique: true
+          
+          # Transform: concatenate first + last name
+          - name: full_name
+            type: VARCHAR(500)
+            not_null: true
+          
+          # Transform: trim whitespace from phone
+          - name: phone
+            type: VARCHAR(20)
+          
+          # Transform: format date
+          - name: created_date
+            type: DATE
+          
+          # Transform: coalesce for fallback
+          - name: contact_method
+            type: VARCHAR(50)
+
+mappings:
+  # Example 1: Simple transform with transform field
+  - target: dw.dim.dim_customer.email
+    from:
+      source_id: mongo_users
+      path: $.contact.email
+      transform: lower()
+  
+  # Example 2: Concatenation using rule
+  - target: dw.dim.dim_customer.full_name
+    from:
+      rule: concat($.first_name, ' ', $.last_name)
+  
+  # Example 3: Trim whitespace
+  - target: dw.dim.dim_customer.phone
+    from:
+      source_id: mongo_users
+      path: $.contact.phone
+      transform: trim()
+  
+  # Example 4: Date formatting
+  - target: dw.dim.dim_customer.created_date
+    from:
+      source_id: mongo_users
+      path: $.created_at
+      transform: formatDate("YYYY-MM-DD")
+  
+  # Example 5: Coalesce for fallback values
+  - target: dw.dim.dim_customer.contact_method
+    from:
+      rule: coalesce($.preferences.contact, "email")
+  
+  # Example 6: Type casting
+  - target: dw.dim.dim_customer.customer_id
+    from:
+      source_id: mongo_users
+      path: $.user_id
+      transform: cast("integer")

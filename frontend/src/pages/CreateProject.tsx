@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/pages/CreateProject.tsx
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,13 +13,13 @@ import {
   Database,
   Check,
   AlertCircle,
-  Play,
-  Save,
   BarChart3,
   LogOut,
-  User
+  User,
+  Edit,
+  X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,15 +30,79 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/AuthProvider";
-
+import { useProject, useProjectActions } from "@/contexts/ProjectContext";
+import { getUserInitials } from "@/lib/utils";
 
 const CreateProject = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, logout } = useAuth();
 
-  // <-- MOVE hook call inside the component
-  const { logout } = useAuth();
+  // Get project state from context
+  const {
+    projectId,
+    projectName,
+    dslContent,
+    isEditing,
+    isValidated,
+    isValidationPassed,
+    validationResult,
+    validationError: contextValidationError,
+    parsedData,
+    isDirty,
+  } = useProject();
+
+  // Get context actions
+  const {
+    updateProjectName,
+    updateDSL,
+    setEditing,
+    saveValidation,
+    markSaved,
+    resetProject,
+  } = useProjectActions();
+
+  // Handle default name from navigation state (for new projects)
+  useEffect(() => {
+    if (location.state?.defaultName && !projectId && !projectName) {
+      updateProjectName(location.state.defaultName);
+      setEditing(true); // New projects start in edit mode
+
+      // Reset validation state for new projects to prevent showing stale errors
+      saveValidation({
+        isValidated: false,
+        isValidationPassed: false,
+        validationResult: null,
+        validationError: null,
+        parsedData: null,
+      });
+    }
+
+    // Restore editing state if returning from visualization
+    if (location.state?.isEditing !== undefined) {
+      setEditing(location.state.isEditing);
+    }
+  }, [location.state]);
+
+  // Debug: Log context state on mount and when it changes
+  useEffect(() => {
+    console.log('🔍 CreateProject context state:', {
+      projectId,
+      isValidated,
+      isValidationPassed,
+      parsedData: parsedData ? 'present' : 'null',
+      isEditing,
+      isDirty
+    });
+  }, [projectId, isValidated, isValidationPassed, isEditing]);
+
+  // Local UI state (not part of global context)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const handleLogout = () => {
-    // optionally catch errors
     try {
       logout();
     } catch (err) {
@@ -45,35 +110,21 @@ const CreateProject = () => {
     }
   };
 
-  const [projectName, setProjectName] = useState("");
-  const [selectedEngine, setSelectedEngine] = useState("");
-  const [dslContent, setDslContent] = useState("");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [parsedData, setParsedData] = useState<any>(null);
-  const [generatedSQL, setGeneratedSQL] = useState("");
-
-  const engines = [
-    { id: "postgres", name: "PostgreSQL", icon: "🐘" },
-    { id: "mysql", name: "MySQL", icon: "🐬" },
-    { id: "snowflake", name: "Snowflake", icon: "❄️" },
-    { id: "mongodb", name: "MongoDB", icon: "🍃" },
-  ];
-
+  // File upload handler
   const handleFileUpload = (file: File) => {
+    if (projectId && !isEditing) return; // Prevent upload in read-only mode
     setUploadedFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      setDslContent(content);
-      // Mock parsing - in real app, this would be actual YAML/DSL parsing
-      mockParseDSL(content);
+      updateDSL(content);
     };
     reader.readAsText(file);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (projectId && !isEditing) return;
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
@@ -83,6 +134,7 @@ const CreateProject = () => {
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (projectId && !isEditing) return;
     setIsDragOver(true);
   };
 
@@ -91,82 +143,290 @@ const CreateProject = () => {
     setIsDragOver(false);
   };
 
+  // Lightweight client-side parse for preview
   const mockParseDSL = (content: string) => {
-    // Mock parsed data - replace with actual DSL parsing logic
-    const lines = content.split("\n");
-    const tableMatches = content.match(/^\s*\w+:/gm) || [];
-    const columnMatches = content.match(/^\s*-\s+\w+:/gm) || [];
+    try {
+      if (!content || !content.trim()) return null;
 
-    setParsedData({
-      totalTables: Math.max(tableMatches.length, 1),
-      sources: Math.max(Math.floor(tableMatches.length / 3), 1),
-      tables: tableMatches
-        .map((match) => match.replace(/^\s*/, "").replace(":", ""))
-        .slice(0, 10),
-      relationships: Math.floor(
-        columnMatches.filter((col) => col.includes("foreign_key")).length
-      ),
-      isValid: content.trim().length > 0 && !content.includes("error"),
-    });
-  };
+      const tables: string[] = [];
+      const sources: string[] = [];
+      const mappings: string[] = [];
 
-  const handleValidateDSL = () => {
-    if (dslContent) {
-      mockParseDSL(dslContent);
-    }
-  };
-
-  const handleGenerateSQL = () => {
-    if (selectedEngine && dslContent) {
-      // Mock SQL generation - replace with actual generation logic
-      setGeneratedSQL(`-- Generated SQL for ${
-        engines.find((e) => e.id === selectedEngine)?.name
+      const tablesMatch = content.match(/tables:\s*\n([\s\S]*?)(?=\n\w+:|$)/);
+      if (tablesMatch) {
+        const tableSection = tablesMatch[1];
+        const tableNames = tableSection.match(/- name:\s*(\w+)/g) || [];
+        tables.push(...tableNames.map(match => match.replace(/- name:\s*/, '')));
       }
-CREATE DATABASE example_db;
 
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+      const sourcesMatch = content.match(/sources:\s*\n([\s\S]*?)(?=\nmappings:|$)/);
+      if (sourcesMatch) {
+        const sourceSection = sourcesMatch[1];
+        const sourceIds = sourceSection.match(/- id:\s*(\w+)/g) || [];
+        sources.push(...sourceIds.map(match => match.replace(/- id:\s*/, '')));
+      }
 
-CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id),
-    total_amount DECIMAL(10,2),
-    status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
+      const mappingsMatch = content.match(/mappings:\s*\n([\s\S]*?)(?=\nnotes:|$)/);
+      if (mappingsMatch) {
+        const mappingSection = mappingsMatch[1];
+        const targetMappings = mappingSection.match(/- target:\s*[^\n]+/g) || [];
+        mappings.push(...targetMappings.map(match => {
+          const targetPath = match.replace(/- target:\s*/, '');
+          return targetPath.split('.').pop() || targetPath;
+        }));
+      }
 
--- Additional tables and relationships...`);
+      return {
+        totalTables: tables.length,
+        sources: sources.length,
+        tables,
+        mappings: mappings.length,
+        relationships: 0,
+      };
+    } catch (error) {
+      console.error('Error parsing DSL:', error);
+      return null;
     }
   };
 
-  const handleDataVisualization = () => {
-    if (selectedEngine && dslContent) {
-      // Navigate to data visualization page with project data
+  // Validate DSL
+  const handleValidateDSL = async () => {
+    if (!dslContent || !dslContent.trim()) {
+      saveValidation({
+        isValidated: true,
+        isValidationPassed: false,
+        validationResult: null,
+        validationError: "DSL is empty. Paste or upload DSL to validate.",
+        parsedData: null,
+      });
+      return;
+    }
+
+    setValidating(true);
+    const mockData = mockParseDSL(dslContent);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch("/api/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Authorization": `Bearer ${token}`
+        },
+        body: dslContent,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (data && data.error) || `Server error ${res.status}`;
+        saveValidation({
+          isValidated: true,
+          isValidationPassed: false,
+          validationResult: null,
+          validationError: String(msg),
+          parsedData: mockData,
+        });
+      } else {
+        const isValid = data?.valid === true;
+        saveValidation({
+          isValidated: true,
+          isValidationPassed: isValid,
+          validationResult: data,
+          validationError: null,
+          parsedData: mockData,
+        });
+      }
+    } catch (err: any) {
+      saveValidation({
+        isValidated: true,
+        isValidationPassed: false,
+        validationResult: null,
+        validationError: err?.message === "Failed to fetch"
+          ? "Unable to reach server. Is the backend running?"
+          : String(err),
+        parsedData: mockData,
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Data Visualization button handler
+  const handleDataVisualization = async () => {
+    if (!dslContent || !dslContent.trim()) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: "DSL is empty. Paste or upload DSL to generate artifacts.",
+      });
+      return;
+    }
+
+    if (!isValidated || !isValidationPassed) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: "Please validate the DSL and ensure it passes before generating visualization.",
+      });
+      return;
+    }
+
+    setValidating(true);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Authorization": `Bearer ${token}`
+        },
+        body: dslContent,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message = (data && (data.error || JSON.stringify(data))) || `Server generate failed: ${res.status}`;
+        saveValidation({
+          ...{ isValidated, isValidationPassed, validationResult, parsedData },
+          validationError: String(message),
+        });
+        setValidating(false);
+        return;
+      }
+
+      const artifacts = {
+        csv: data.csv || "",
+        mermaids: Array.isArray(data.mermaids) ? data.mermaids : [],
+        lineage: data.lineage || null,
+        referentialWarnings: data.referentialWarnings || [],
+      };
+
+      // Navigate to DataVisualization
       navigate("/data-visualization", {
         state: {
           projectName: projectName || "Untitled Project",
-          engine:
-            engines.find((e) => e.id === selectedEngine)?.name || selectedEngine,
+          projectId,
+          isEditing,
+          engine: "Postgres",
           dslContent,
           parsedData,
+          artifacts,
         },
       });
+    } catch (err: any) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: err?.message === "Failed to fetch"
+          ? "Unable to reach server. Is the backend running?"
+          : String(err),
+      });
+    } finally {
+      setValidating(false);
     }
   };
 
-  const handleSaveAndContinue = () => {
-    // Save project logic here
-    console.log("Saving project:", {
-      name: projectName,
-      engine: selectedEngine,
-      dsl: dslContent,
-      sql: generatedSQL,
-    });
-    navigate("/dashboard");
+  // Save Project to Database
+  const handleSaveProject = async () => {
+    if (!projectName || !projectName.trim()) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: "Please enter a project name before saving.",
+      });
+      return;
+    }
+
+    if (!dslContent || !dslContent.trim()) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: "Please provide DSL content before saving.",
+      });
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        saveValidation({
+          ...{ isValidated, isValidationPassed, validationResult, parsedData },
+          validationError: "You must be logged in to save projects.",
+        });
+        setSaving(false);
+        return;
+      }
+
+      const url = projectId ? `/api/projects/${projectId}` : "/api/projects";
+      const method = projectId ? "PUT" : "POST";
+
+      const metadataToSave = {
+        isValidated,
+        isValidationPassed,
+        validationResult,
+        parsedData,
+        lastValidated: new Date().toISOString(),
+      };
+
+      console.log('💾 Saving project with metadata:', metadataToSave);
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: projectName,
+          dslContent: dslContent,
+          metadata: metadataToSave,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        saveValidation({
+          ...{ isValidated, isValidationPassed, validationResult, parsedData },
+          validationError: data.error || "Failed to save project",
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Success! Mark as saved and return to read-only mode
+      markSaved();
+      alert(`Project "${projectName}" saved successfully!`);
+      navigate("/dashboard");
+    } catch (err: any) {
+      saveValidation({
+        ...{ isValidated, isValidationPassed, validationResult, parsedData },
+        validationError: err?.message === "Failed to fetch"
+          ? "Unable to reach server. Is the backend running?"
+          : "Failed to save project. Please try again.",
+      });
+      setSaving(false);
+    }
+  };
+
+  // Cancel edit mode - discard changes
+  const handleCancelEdit = () => {
+    if (isDirty && !confirm("Discard unsaved changes?")) {
+      return;
+    }
+    setEditing(false);
+    // Could reload from server here if needed
+  };
+
+  // Normalize validation for display
+  const normalizeValidation = (vr: any) => {
+    if (!vr) return { ajvErrors: [], referentialErrors: [], referentialWarnings: [] };
+
+    const ajvErrors = vr.ajvErrors || vr.ajv_errors || [];
+    const referentialErrors = vr.referentialErrors || vr.referential?.errors || [];
+    const referentialWarnings = vr.referentialWarnings || vr.referential?.warnings || [];
+
+    return { ajvErrors, referentialErrors, referentialWarnings };
   };
 
   return (
@@ -175,12 +435,17 @@ CREATE TABLE orders (
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container px-4">
           <div className="flex items-center h-16 justify-between">
-            {/*Back button */}
+            {/* Back button */}
             <div className="flex items-center">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => {
+                  if (isDirty && !confirm("You have unsaved changes. Leave anyway?")) {
+                    return;
+                  }
+                  navigate("/dashboard");
+                }}
                 className="mr-2"
                 aria-label="Back to dashboard"
               >
@@ -190,13 +455,14 @@ CREATE TABLE orders (
             </div>
 
             <div className="flex-1 flex justify-center px-4">
-              <div className="w-full max-w-xl"> 
+              <div className="w-full max-w-xl">
                 <Input
                   placeholder="Enter project name..."
                   value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
+                  onChange={(e) => updateProjectName(e.target.value)}
                   className="w-full"
                   aria-label="Project name"
+                  disabled={!!projectId && !isEditing}
                 />
               </div>
             </div>
@@ -211,7 +477,7 @@ CREATE TABLE orders (
                     aria-label="User menu"
                   >
                     <Avatar>
-                      <AvatarFallback>VJ</AvatarFallback>
+                      <AvatarFallback>{getUserInitials(user?.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -219,16 +485,18 @@ CREATE TABLE orders (
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">Vinit Jain</p>
+                      <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        vinit.jain@example.com
+                        {user?.email || "user@example.com"}
                       </p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer flex w-full items-center">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
@@ -242,11 +510,10 @@ CREATE TABLE orders (
         </div>
       </header>
 
-
       {/* Three-Panel Layout */}
       <main className="container px-4 py-6">
         <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-8rem)]">
-          {/* LEFT PANEL */}
+          {/* LEFT PANEL - Upload DSL */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
@@ -257,12 +524,10 @@ CREATE TABLE orders (
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* File Upload */}
-                <div>
+                <div className={(projectId && !isEditing) ? "opacity-50 pointer-events-none" : ""}>
                   <label className="text-sm font-medium mb-2 block">1. Upload File</label>
                   <div
-                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      isDragOver ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-                    }`}
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragOver ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -298,93 +563,161 @@ CREATE TABLE orders (
 
                 {/* Paste Code */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">2. Paste Code</label>
+                  <label className="text-sm font-medium mb-2 flex items-center justify-between">
+                    2. Paste Code
+                    {projectId && !isEditing && <Badge variant="secondary" className="text-xs">Read-only</Badge>}
+                    {projectId && isEditing && <Badge variant="default" className="text-xs">Editing</Badge>}
+                    {isDirty && <Badge variant="destructive" className="text-xs">Unsaved</Badge>}
+                  </label>
                   <Textarea
                     placeholder="Paste your DSL code here..."
                     value={dslContent}
-                    onChange={(e) => setDslContent(e.target.value)}
+                    onChange={(e) => updateDSL(e.target.value)}
                     className="min-h-[300px] font-mono text-sm"
+                    disabled={!!projectId && !isEditing}
                   />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* MIDDLE PANEL */}
+          {/* MIDDLE PANEL - Actions */}
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Database className="w-5 h-5" />
-                  Target Engine
+                  Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Engine Selection */}
-                <div className="grid grid-cols-2 gap-2">
-                  {engines.map((engine) => (
+              <CardContent className="space-y-3">
+                {/* Banner for old projects without metadata */}
+                {projectId && !isEditing && !isValidated && (
+                  <div className="p-3 rounded-lg border bg-blue-50 border-blue-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">
+                        One-Time Validation Needed
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-700">
+                      This project was saved before validation caching was enabled. Click "Edit Project" and validate once to enable instant visualization access in the future.
+                    </p>
+                  </div>
+                )}
+
+                {/* Validation Status Display - Shows in sidebar */}
+                {isValidated && (
+                  <div className={`p-3 rounded-lg border ${isValidationPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {isValidationPassed ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                      )}
+                      <span className={`text-sm font-medium ${isValidationPassed ? 'text-green-800' : 'text-red-800'}`}>
+                        {isValidationPassed ? 'Validation Passed ✓' : 'Validation Failed ✗'}
+                      </span>
+                    </div>
+                    <p className={`text-xs ${isValidationPassed ? 'text-green-700' : 'text-red-700'}`}>
+                      {isValidationPassed
+                        ? 'This project is valid and ready for visualization'
+                        : 'This project contains validation errors. Click "Edit Project" to fix errors and re-validate.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Show Edit button ONLY if existing project AND not editing */}
+                {projectId && !isEditing && (
+                  <Button
+                    variant="default"
+                    className="w-full justify-start"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Project
+                  </Button>
+                )}
+
+                {/* Show Validate, Save, Cancel buttons if new project OR editing */}
+                {(!projectId || isEditing) && (
+                  <>
                     <Button
-                      key={engine.id}
-                      variant={selectedEngine === engine.id ? "default" : "outline"}
-                      className="h-auto p-3 flex flex-col items-center gap-1"
-                      onClick={() => setSelectedEngine(engine.id)}
+                      variant="secondary"
+                      className="w-full justify-start"
+                      onClick={handleValidateDSL}
+                      disabled={!dslContent || validating}
                     >
-                      <span className="text-lg">{engine.icon}</span>
-                      <span className="text-xs">{engine.name}</span>
+                      <Check className="w-4 h-4 mr-2" />
+                      {validating ? "Validating…" : "Validate DSL"}
                     </Button>
-                  ))}
-                </div>
 
-                <Separator />
+                    <Button
+                      variant="default"
+                      className="w-full justify-start"
+                      onClick={handleSaveProject}
+                      disabled={!projectName || !dslContent || saving || validating || !isDirty}
+                      title={
+                        !projectName
+                          ? "Please enter a project name"
+                          : !dslContent
+                            ? "Please provide DSL content"
+                            : !isDirty
+                              ? "No changes to save"
+                              : "Save project to database"
+                      }
+                    >
+                      <Database className="w-4 h-4 mr-2" />
+                      {saving ? "Saving…" : (projectId ? "Update Project" : "Save Project")}
+                    </Button>
 
-                {/* Actions */}
-                <div className="space-y-3">
-                  <h3 className="font-medium">Actions</h3>
+                    {projectId && isEditing && (
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={handleCancelEdit}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    )}
+                  </>
+                )}
 
+                {/* Data Visualization button - Show for valid projects (read-only or editing) */}
+                {isValidated && isValidationPassed && (
                   <Button
                     variant="secondary"
-                    className="w-full justify-start"
-                    onClick={handleValidateDSL}
-                    disabled={!dslContent}
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    Validate DSL
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={handleGenerateSQL}
-                    disabled={!selectedEngine || !dslContent}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Generate SQL
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
+                    className="w-full justify-start bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
                     onClick={handleDataVisualization}
-                    disabled={!selectedEngine || !dslContent}
+                    disabled={!dslContent || validating}
                   >
                     <BarChart3 className="w-4 h-4 mr-2" />
-                    Data Visualization
+                    {validating ? "Generating…" : "View Visualizations"}
                   </Button>
+                )}
 
-                  <Button
-                    className="w-full justify-start"
-                    onClick={handleSaveAndContinue}
-                    disabled={!projectName || !selectedEngine || !dslContent}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save & Continue
-                  </Button>
-                </div>
+                {/* Help text based on project state */}
+                {!isValidated && dslContent && (!projectId || isEditing) && (
+                  <div className="text-xs text-center text-muted-foreground p-2 bg-amber-50 border border-amber-200 rounded">
+                    ⚠️ Click "Validate DSL" first to check for errors
+                  </div>
+                )}
+
+                {/* Note for invalid projects in read-only mode */}
+                {projectId && !isEditing && isValidated && !isValidationPassed && (
+                  <div className="text-xs text-center p-3 bg-red-50 border border-red-200 rounded">
+                    <p className="text-red-800 font-medium mb-1">⚠️ Validation Required</p>
+                    <p className="text-red-700">
+                      This project is not valid. Please edit and fix validation errors before accessing visualizations.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* RIGHT PANEL */}
+          {/* RIGHT PANEL - Preview */}
           <div className="col-span-6">
             <Card className="h-full">
               <CardHeader>
@@ -406,19 +739,7 @@ CREATE TABLE orders (
                         <Badge variant="secondary">Sources: {parsedData.sources}</Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-4">
-                      {parsedData.isValid ? (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <Check className="w-4 h-4" />
-                          <span className="text-sm">Valid DSL</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-red-600">
-                          <AlertCircle className="w-4 h-4" />
-                          <span className="text-sm">Invalid DSL</span>
-                        </div>
-                      )}
-                    </div>
+
                     {parsedData.tables && (
                       <div>
                         <p className="text-sm font-medium mb-2">Tables:</p>
@@ -436,29 +757,91 @@ CREATE TABLE orders (
 
                 <Separator />
 
-                {/* Generated SQL */}
+                {/* Validation results */}
                 <div>
                   <h3 className="font-medium mb-3 flex items-center gap-2">
-                    <Database className="w-4 h-4" />
-                    Generated SQL
-                    {selectedEngine && (
-                      <Badge variant="outline" className="text-xs">
-                        {engines.find((e) => e.id === selectedEngine)?.name}
-                      </Badge>
-                    )}
+                    <Check className="w-4 h-4" />
+                    Validation Results
                   </h3>
-                  {generatedSQL ? (
-                    <div className="bg-muted rounded-lg p-4 max-h-[400px] overflow-auto">
-                      <pre className="text-sm font-mono whitespace-pre-wrap">{generatedSQL}</pre>
-                    </div>
-                  ) : (
-                    <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-                      <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">
-                        {selectedEngine && dslContent
-                          ? "Click 'Generate SQL' to see the preview"
-                          : "Select an engine and upload DSL to generate SQL"}
-                      </p>
+
+                  {validating && <div className="text-sm text-muted-foreground">Working...</div>}
+
+                  {contextValidationError && (
+                    <div className="text-sm text-red-600">Error: {contextValidationError}</div>
+                  )}
+
+                  {validationResult && (() => {
+                    const { ajvErrors, referentialErrors, referentialWarnings } = normalizeValidation(validationResult);
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            Valid: {String(validationResult.valid ?? false)}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            AJV errors: {ajvErrors?.length ?? 0}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Referential errors: {referentialErrors?.length ?? 0}
+                          </Badge>
+                          {referentialWarnings?.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              Warnings: {referentialWarnings.length}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {ajvErrors && ajvErrors.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">AJV Errors:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {ajvErrors.map((e: any, i: number) => (
+                                <li key={i}>
+                                  <code>{e.instancePath || e.dataPath || "/"}</code> — {e.message || JSON.stringify(e)}
+                                  {e.schemaPath ? <span className="text-muted-foreground"> ({e.schemaPath})</span> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {referentialErrors && referentialErrors.length > 0 ? (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Referential Errors:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {referentialErrors.map((e: any, i: number) => {
+                                const message = typeof e === "string" ? e : e.message || e.msg || JSON.stringify(e);
+                                const path = e?.path || e?.location || null;
+                                return (
+                                  <li key={i}>
+                                    {message} {path ? <em className="text-muted-foreground">({path})</em> : null}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">No referential errors.</div>
+                        )}
+
+                        {referentialWarnings && referentialWarnings.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Warnings:</p>
+                            <ul className="list-disc pl-5 text-sm">
+                              {referentialWarnings.map((w: any, i: number) => (
+                                <li key={i}>{(typeof w === "string" ? w : w.message) ?? JSON.stringify(w)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {!validating && !contextValidationError && !validationResult && (
+                    <div className="text-sm text-muted-foreground">
+                      Click <strong>Validate DSL</strong> to run structural (AJV) and referential validation on the server.
                     </div>
                   )}
                 </div>

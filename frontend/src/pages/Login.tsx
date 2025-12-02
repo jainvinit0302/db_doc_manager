@@ -13,19 +13,45 @@ const Login = () => {
   const { login } = useAuth(); // 👈 from AuthProvider
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // This allows redirecting user back to the protected route they came from
   const from = (location.state as any)?.from?.pathname || "/dashboard";
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    // (Optional) add your API authentication here instead of fake token
-    const fakeToken = "FAKE_AUTH_TOKEN";
-    login(fakeToken); // 👈 saves token to localStorage
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // redirect user to target route (dashboard or saved path)
-    navigate(from, { replace: true });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      // Save token and user info
+      login(data.token, data.user);
+
+      // redirect user to target route (dashboard or saved path)
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err.message === "Failed to fetch"
+        ? "Unable to reach server. Is the backend running?"
+        : "Login failed. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,6 +73,11 @@ const Login = () => {
 
           {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -57,6 +88,9 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="bg-background/50"
+                disabled={loading}
+                autoComplete="off"
+                name="login-email"
               />
             </div>
             <div className="space-y-2">
@@ -69,10 +103,13 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="bg-background/50"
+                disabled={loading}
+                autoComplete="off"
+                name="login-password"
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 

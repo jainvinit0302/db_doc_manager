@@ -1,0 +1,333 @@
+project: enterprise_omnidata_dw
+version: "5.1"
+description: >
+  Ultra-complex AJV-valid dataset covering multiple engines, many sources,
+  nested paths, computed rules, reference lookups, and curated outputs.
+  All defaults are strings, all FKs are objects, all mappings are either
+  {source_id, path} or {rule}, no invalid 'kind'.
+
+owners:
+  - "platform-data@enterprise.com"
+  - "analytics@enterprise.com"
+
+tags: [enterprise, omni, staging, pii, finance, telemetry]
+
+sla:
+  refresh: hourly
+  load_window: "00:00-06:00 UTC"
+
+targets:
+
+  # -------------------------
+  # DIMENSION TABLES (Postgres)
+  # -------------------------
+  - db: dw
+    engine: postgres
+    schema: dim
+    tables:
+      - name: dim_customer
+        columns:
+          - { name: customer_sk, type: BIGINT, pk: true }
+          - { name: customer_id, type: STRING }
+          - { name: first_name, type: STRING }
+          - { name: last_name, type: STRING }
+          - { name: email, type: STRING, not_null: true }
+          - { name: phone, type: STRING }
+          - { name: country_code, type: STRING }
+          - { name: created_at, type: TIMESTAMP, default: "CURRENT_TIMESTAMP" }
+          - { name: updated_at, type: TIMESTAMP, default: "CURRENT_TIMESTAMP" }
+
+      - name: dim_product
+        columns:
+          - { name: product_sk, type: BIGINT, pk: true }
+          - { name: product_id, type: STRING }
+          - { name: name, type: STRING }
+          - { name: category, type: STRING }
+          - { name: brand, type: STRING }
+          - { name: created_at, type: TIMESTAMP, default: "CURRENT_TIMESTAMP" }
+
+  # -------------------------
+  # FACT TABLES (Postgres)
+  # -------------------------
+  - db: dw
+    engine: postgres
+    schema: fact
+    tables:
+      - name: fct_order
+        columns:
+          - { name: order_sk, type: BIGINT, pk: true }
+          - { name: order_id, type: STRING }
+          - name: customer_sk
+            type: BIGINT
+            fk:
+              schema: dim
+              table: dim_customer
+              column: customer_sk
+          - name: product_sk
+            type: BIGINT
+            fk:
+              schema: dim
+              table: dim_product
+              column: product_sk
+          - { name: order_amount, type: DECIMAL(14,4) }
+          - { name: currency, type: STRING }
+          - { name: order_ts, type: TIMESTAMP }
+          - { name: payment_type, type: STRING }
+          - { name: is_chargeback, type: BOOLEAN, default: "false" }
+
+  # -------------------------
+  # CURATED TABLES (Snowflake)
+  # -------------------------
+  - db: analytics
+    engine: snowflake
+    schema: curated
+    tables:
+      - name: txn_enriched_v2
+        columns:
+          - { name: order_id, type: STRING }
+          - { name: customer_id, type: STRING }
+          - { name: product_id, type: STRING }
+          - { name: amount_usd, type: FLOAT }
+          - { name: local_currency, type: STRING }
+          - { name: region, type: STRING }
+          - { name: loyalty_tier, type: STRING }
+          - { name: is_high_value, type: BOOLEAN, default: "false" }
+          - { name: ingestion_ts, type: TIMESTAMP, default: "CURRENT_TIMESTAMP" }
+          - { name: source_system, type: STRING }       # ADDED
+          - { name: ingest_origin, type: STRING }       # ADDED
+
+  # -------------------------
+  # REF TABLES (MySQL)
+  # -------------------------
+  - db: refdb
+    engine: mysql
+    schema: ref
+    tables:
+      - name: fx_rates
+        columns:
+          - { name: currency, type: STRING, pk: true }
+          - { name: usd_rate, type: FLOAT }
+          - { name: as_of_ts, type: TIMESTAMP }
+
+sources:
+
+  - id: mongo_customers
+    kind: mongodb
+    conn: atlas-global
+    db: omni
+    collection: customers
+
+  - id: mysql_orders
+    kind: mysql
+    host: orders.cluster.internal
+    db: ecommerce
+    schema: prod
+
+  - id: event_file
+    kind: file
+    format: jsonl
+    path: "/data/events/orders_v2.jsonl"
+
+  - id: snowflake_catalog
+    kind: snowflake
+    warehouse: WH_MEDIUM
+    db: ref
+    schema: finance
+
+  - id: mysql_ref
+    kind: mysql
+    host: refdb.internal
+    db: refdb
+    schema: ref
+
+mappings:
+
+  # -------------------------
+  # DIM CUSTOMER (Mongo)
+  # -------------------------
+  - target: dw.dim.dim_customer.customer_id
+    from:
+      source_id: mongo_customers
+      path: $.id
+
+  - target: dw.dim.dim_customer.first_name
+    from:
+      source_id: mongo_customers
+      path: $.profile.name.first
+
+  - target: dw.dim.dim_customer.last_name
+    from:
+      source_id: mongo_customers
+      path: $.profile.name.last
+
+  - target: dw.dim.dim_customer.email
+    from:
+      source_id: mongo_customers
+      path: $.contacts.emails[0]
+
+  - target: dw.dim.dim_customer.phone
+    from:
+      source_id: mongo_customers
+      path: $.contacts.phone.primary
+
+  - target: dw.dim.dim_customer.country_code
+    from:
+      source_id: mongo_customers
+      path: $.location.country_code
+
+  - target: dw.dim.dim_customer.customer_sk
+    from:
+      rule: "sequence('seq_customer_master')"
+
+  # -------------------------
+  # DIM PRODUCT (Events file)
+  # -------------------------
+  - target: dw.dim.dim_product.product_id
+    from:
+      source_id: event_file
+      path: $.payload.product.id
+
+  - target: dw.dim.dim_product.name
+    from:
+      source_id: event_file
+      path: $.payload.product.title
+
+  - target: dw.dim.dim_product.category
+    from:
+      source_id: event_file
+      path: $.payload.product.category
+
+  - target: dw.dim.dim_product.brand
+    from:
+      source_id: event_file
+      path: $.payload.product.brand
+
+  - target: dw.dim.dim_product.product_sk
+    from:
+      rule: "sequence('seq_product_master')"
+
+  # -------------------------
+  # FACT ORDERS (MySQL)
+  # -------------------------
+  - target: dw.fact.fct_order.order_id
+    from:
+      source_id: mysql_orders
+      path: $.order_id
+
+  - target: dw.fact.fct_order.order_amount
+    from:
+      source_id: mysql_orders
+      path: $.total_amount
+
+  - target: dw.fact.fct_order.currency
+    from:
+      source_id: mysql_orders
+      path: $.currency
+
+  - target: dw.fact.fct_order.order_ts
+    from:
+      source_id: mysql_orders
+      path: $.created_at
+
+  - target: dw.fact.fct_order.payment_type
+    from:
+      source_id: mysql_orders
+      path: $.payment_method
+
+  - target: dw.fact.fct_order.is_chargeback
+    from:
+      source_id: mysql_orders
+      path: $.chargeback_flag
+
+  - target: dw.fact.fct_order.order_sk
+    from:
+      rule: "uuid()"
+
+  - target: dw.fact.fct_order.customer_sk
+    from:
+      rule: "lookup_surrogate('dim_customer', mysql_orders.customer_id)"
+
+  - target: dw.fact.fct_order.product_sk
+    from:
+      rule: "lookup_surrogate('dim_product', mysql_orders.product_id)"
+
+  # -------------------------
+  # CURATED TRANSACTIONS (Snowflake)
+  # -------------------------
+  - target: analytics.curated.txn_enriched_v2.order_id
+    from:
+      source_id: mysql_orders
+      path: $.order_id
+
+  - target: analytics.curated.txn_enriched_v2.customer_id
+    from:
+      source_id: mysql_orders
+      path: $.customer_id
+
+  - target: analytics.curated.txn_enriched_v2.product_id
+    from:
+      source_id: mysql_orders
+      path: $.product_id
+
+  - target: analytics.curated.txn_enriched_v2.local_currency
+    from:
+      source_id: mysql_orders
+      path: $.currency
+
+  - target: analytics.curated.txn_enriched_v2.region
+    from:
+      source_id: mongo_customers
+      path: $.location.region
+
+  - target: analytics.curated.txn_enriched_v2.loyalty_tier
+    from:
+      source_id: mongo_customers
+      path: $.loyalty.tier
+
+  - target: analytics.curated.txn_enriched_v2.source_system
+    from:
+      source_id: event_file
+      path: $.payload.source.system
+
+  - target: analytics.curated.txn_enriched_v2.ingest_origin
+    from:
+      source_id: event_file
+      path: $.payload.metadata.origin
+
+  - target: analytics.curated.txn_enriched_v2.is_high_value
+    from:
+      rule: "greaterThan(mysql_orders.total_amount, 1000)"
+
+  - target: analytics.curated.txn_enriched_v2.amount_usd
+    from:
+      rule: "convert_to_usd(mysql_orders.total_amount, lookup_rate(mysql_orders.currency, 'refdb.fx_rates'))"
+
+  - target: analytics.curated.txn_enriched_v2.ingestion_ts
+    from:
+      rule: "now()"
+
+  # -------------------------
+  # FX Rates (MySQL Reference)
+  # -------------------------
+  - target: refdb.ref.fx_rates.currency
+    from:
+      source_id: mysql_ref
+      path: $.currency
+
+  - target: refdb.ref.fx_rates.usd_rate
+    from:
+      source_id: mysql_ref
+      path: $.usd_rate
+
+  - target: refdb.ref.fx_rates.as_of_ts
+    from:
+      source_id: mysql_ref
+      path: $.as_of_ts
+
+  # -------------------------
+  # CATALOG USAGE (Snowflake reference)
+  # -------------------------
+  - target: dw.dim.dim_product.created_at
+    from:
+      source_id: snowflake_catalog
+      path: $.system_timestamp
