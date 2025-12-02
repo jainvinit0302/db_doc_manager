@@ -1,0 +1,61 @@
+erDiagram
+
+  dim_customer {
+    customer_sk bigint
+    customer_id string
+    first_name string
+    last_name string
+    email string
+    phone string
+    country_code string
+    created_at timestamp
+    updated_at timestamp
+  }
+
+  dim_product {
+    product_sk bigint
+    product_id string
+    name string
+    category string
+    brand string
+    created_at timestamp
+  }
+
+  fct_order {
+    order_sk bigint
+    order_id string
+    customer_sk bigint
+    product_sk bigint
+    order_amount decimal_14
+    currency string
+    order_ts timestamp
+    payment_type string
+    is_chargeback boolean
+  }
+
+  txn_enriched_v2 {
+    order_id string
+    customer_id string
+    product_id string
+    amount_usd float
+    local_currency string
+    region string
+    loyalty_tier string
+    is_high_value boolean
+    ingestion_ts timestamp
+    source_system string
+    ingest_origin string
+  }
+
+  fx_rates {
+    currency string
+    usd_rate float
+    as_of_ts timestamp
+  }
+
+  %% Relationships
+  dim_customer ||--o{ fct_order : "customer_sk"
+  dim_product ||--o{ fct_order : "product_sk"
+  dim_customer ||--o{ txn_enriched_v2 : "customer_id"
+  dim_product ||--o{ txn_enriched_v2 : "product_id"
+
