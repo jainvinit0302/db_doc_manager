@@ -8,7 +8,7 @@ dist/
 coverage/
 
 # Generated documentation
-docs/
+# docs/ - Now tracked for static site
 docs-new/
 
 # Generated test outputs

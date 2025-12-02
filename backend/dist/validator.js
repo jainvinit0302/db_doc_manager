@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.referentialValidate = referentialValidate;
+const transforms_1 = require("./transforms");
 /**
  * Check referential integrity and completeness for the normalized AST.
  *
@@ -35,6 +36,25 @@ function referentialValidate(ast) {
         if (from.source_id) {
             if (!sourceIds.has(from.source_id)) {
                 errors.push(`Mapping for target "${m.rawTarget}" references unknown source_id "${from.source_id}"`);
+            }
+        }
+        // 1.5 Validate transforms (if present)
+        if (from.transform) {
+            const transformError = (0, transforms_1.validateTransform)(from.transform);
+            if (transformError) {
+                errors.push(`Mapping "${m.rawTarget}": ${transformError}`);
+            }
+        }
+        // Validate rule-based transforms
+        if (from.rule) {
+            // Check if rule contains a transform function
+            const ruleStr = String(from.rule);
+            if (ruleStr.includes('(') && ruleStr.includes(')')) {
+                const transformError = (0, transforms_1.validateTransform)(ruleStr);
+                if (transformError) {
+                    // Only warn for rules since they might be complex expressions
+                    warnings.push(`Mapping "${m.rawTarget}" rule may contain invalid transform: ${transformError}`);
+                }
             }
         }
         // 2. target resolution

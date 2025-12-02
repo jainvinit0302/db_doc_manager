@@ -1,0 +1,4 @@
+node_modules/
+.dbdoc/cache/
+docs/
+*.log

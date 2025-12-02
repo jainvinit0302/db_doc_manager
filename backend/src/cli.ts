@@ -48,8 +48,9 @@ async function initCommand(projectName?: string) {
   // Create directory structure
   try {
     ensureDir(projectDir);
+    ensureDir(projectDir);
     ensureDir(path.join(projectDir, '.dbdoc'));
-    ensureDir(path.join(projectDir, 'schemas'));
+    // ensureDir(path.join(projectDir, 'schemas')); // Removed schemas dir to match user request
 
     console.log(chalk.green('✓') + ' Created project structure');
 
@@ -57,8 +58,7 @@ async function initCommand(projectName?: string) {
     const sampleSchema = `project: "${name}"
 version: "1.0"
 owners:
-  - name: "Your Team"
-    email: "team@example.com"
+  - "team@example.com"
 
 sources:
   - id: source_db
@@ -99,12 +99,12 @@ mappings:
 `;
 
     fs.writeFileSync(
-      path.join(projectDir, 'schemas', 'example.yaml'),
+      path.join(projectDir, 'schema.yaml'),
       sampleSchema,
       'utf8'
     );
 
-    console.log(chalk.green('✓') + ' Created example schema');
+    console.log(chalk.green('✓') + ' Created schema.yaml');
 
     // Create .gitignore
     const gitignore = `node_modules/
@@ -121,12 +121,39 @@ docs/
 
 DBDocManager Project
 
-## Quick Start
+## Quick Start Guide (CLI)
 
-1. Edit your schema in \`schemas/example.yaml\`
-2. Validate: \`dbdoc validate schemas/example.yaml\`
-3. Generate docs: \`dbdoc generate schemas/example.yaml\`
-4. View docs: \`dbdoc serve\`
+1. **Initialize Project**
+
+   \`\`\`bash
+   dbdoc init ${name}
+   cd ${name}
+   \`\`\`
+
+2. **Introspect Database (Optional)**
+
+   \`\`\`bash
+   # Auto-generate DSL from existing DB
+   dbdoc introspect postgres "postgresql://user:pass@localhost/mydb" --out schema.yaml
+   \`\`\`
+
+3. **Validate DSL**
+
+   \`\`\`bash
+   dbdoc validate schema.yaml
+   \`\`\`
+
+4. **Generate Documentation**
+
+   \`\`\`bash
+   dbdoc generate schema.yaml --out docs
+   \`\`\`
+
+5. **Serve Documentation**
+
+   \`\`\`bash
+   dbdoc serve --dir docs
+   \`\`\`
 
 ## Learn More
 
@@ -142,9 +169,9 @@ DBDocManager Project
     console.log(chalk.green('✨ Project initialized successfully!\n'));
     console.log(chalk.bold('Next steps:'));
     console.log(chalk.gray(`  cd ${name}`));
-    console.log(chalk.gray(`  dbdoc validate schemas/example.yaml`));
-    console.log(chalk.gray(`  dbdoc generate schemas/example.yaml`));
-    console.log(chalk.gray(`  dbdoc serve\n`));
+    console.log(chalk.gray(`  dbdoc validate schema.yaml`));
+    console.log(chalk.gray(`  dbdoc generate schema.yaml --out docs`));
+    console.log(chalk.gray(`  dbdoc serve --dir docs\n`));
 
   } catch (error: any) {
     console.error(chalk.red('✗ Error initializing project:'), error.message);

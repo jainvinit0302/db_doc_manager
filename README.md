@@ -61,26 +61,30 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 ### Core Functionality
 
 #### 🔐 **Authentication & User Management**
+
 - User signup/login with JWT authentication
 - Password hashing with bcrypt
 - Protected routes and API endpoints
 - User profile with usage analytics
 
 #### 📁 **Project Management**
+
 - Create and manage multiple documentation projects
 - Save DSL content with auto-save
 - Project metadata and versioning
 - SQLite-based persistence
 
 #### 📝 **DSL Editor**
+
 - YAML-based DSL syntax
 - Real-time validation with error highlighting
 - Live preview of generated artifacts
 - Support for complex mappings and transforms
 
 #### ✅ **Validation Engine**
+
 - **Structural Validation:** JSON Schema (AJV) validation
-- **Referential Validation:** 
+- **Referential Validation:**
   - Source IDs must exist
   - Target tables/columns must exist
   - NOT NULL columns must have mappings or defaults
@@ -88,12 +92,14 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
   - Transform syntax validation
 
 #### 🔍 **Database Introspection** (New in v2.2)
+
 - **PostgreSQL:** Connect to existing DB and auto-generate DSL
 - **MongoDB:** Sample documents to infer schema and types
 - **CLI Integration:** One-command DSL generation
 - **Time Saver:** Reduces manual DSL writing by 90%
 
 #### 🛠️ **Enhanced CLI**
+
 - **init:** Scaffold new projects
 - **validate:** Check syntax with colored output
 - **generate:** Build static HTML docs & artifacts
@@ -102,6 +108,7 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 - **list:** Explore available transforms and metadata
 
 #### ⚡ **Transform Library**
+
 - **String:** `lower`, `upper`, `trim`, `concat`, `substring`
 - **Date:** `parseDate`, `formatDate`
 - **Math:** `round`, `abs`
@@ -111,6 +118,7 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 #### 🎨 **Visualizations**
 
 **ER Diagrams (React Flow)**
+
 - Interactive node-based diagrams
 - Zoom, pan, and drag functionality
 - Automatic layout with dagre
@@ -118,12 +126,14 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 - Per-schema and global views
 
 **Lineage Graphs (Cytoscape)**
+
 - Source→Target data flow visualization
 - Table-level and column-level lineage
 - Interactive exploration
 - Different node styles for sources vs targets
 
 **Mapping Matrix**
+
 - CSV/HTML export
 - One row per target column
 - Source path, transforms, and rules
@@ -132,16 +142,19 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 #### 🗄️ **Multi-Dialect SQL Generation**
 
 **PostgreSQL**
+
 - Standard SQL DDL with constraints
 - Foreign key relationships
 - Default values and sequences
 
 **Snowflake**
+
 - Type mapping (VARCHAR→STRING, DECIMAL→NUMBER)
 - CURRENT_TIMESTAMP() for defaults
 - Primary key constraints
 
 **MongoDB**
+
 - JSON Schema validators
 - `createCollection` scripts
 - Type mapping (INT→int, BIGINT→long, DECIMAL→double/decimal)
@@ -149,6 +162,7 @@ DBDocManager provides a lightweight **Domain-Specific Language (DSL)** to descri
 - Nullable field support
 
 #### 📊 **Analytics & Tracking**
+
 - Login count tracking
 - Validation count
 - Generation count
@@ -218,6 +232,7 @@ DBDocManager/
 ### Technology Stack
 
 #### Frontend
+
 - **Framework:** React 18 with TypeScript
 - **Build Tool:** Vite
 - **Styling:** Tailwind CSS + shadcn/ui components
@@ -230,6 +245,7 @@ DBDocManager/
 - **HTTP Client:** Fetch API
 
 #### Backend
+
 - **Runtime:** Node.js 18+
 - **Framework:** Express.js
 - **Language:** TypeScript
@@ -327,28 +343,33 @@ Frontend will run at `http://localhost:5173`
 ### Quick Start Guide (CLI)
 
 1. **Initialize Project**
+
    ```bash
    dbdoc init my-project
    cd my-project
    ```
 
 2. **Introspect Database (Optional)**
+
    ```bash
    # Auto-generate DSL from existing DB
    dbdoc introspect postgres "postgresql://user:pass@localhost/mydb" --out schema.yaml
    ```
 
 3. **Validate DSL**
+
    ```bash
    dbdoc validate schema.yaml
    ```
 
 4. **Generate Documentation**
+
    ```bash
    dbdoc generate schema.yaml --out docs
    ```
 
 5. **Serve Documentation**
+
    ```bash
    dbdoc serve --dir docs
    ```
@@ -432,6 +453,7 @@ targets:
 ```
 
 **Supported Types:**
+
 - `INTEGER`, `BIGINT`, `SMALLINT`
 - `VARCHAR(n)`, `TEXT`
 - `DECIMAL(p,s)`, `NUMERIC`, `DOUBLE`, `FLOAT`
@@ -462,12 +484,14 @@ mappings:
 ```
 
 **JSONPath Examples:**
+
 - `$.email` - Top-level field
 - `$.contact.email` - Nested field
 - `$.address.street` - Nested object
 - `$.lines[*]` - Array (will explode)
 
 **Transforms:**
+
 - `lower()` - Lowercase
 - `upper()` - Uppercase
 - `trim()` - Remove whitespace
@@ -493,6 +517,7 @@ mappings:
 ## 🔌 API Documentation
 
 ### Base URL
+
 ```
 http://localhost:5000/api
 ```
@@ -500,9 +525,11 @@ http://localhost:5000/api
 ### Authentication Endpoints
 
 #### **POST** `/auth/signup`
+
 Register a new user.
 
 **Request:**
+
 ```json
 {
   "email": "user@example.com",
@@ -512,6 +539,7 @@ Register a new user.
 ```
 
 **Response:**
+
 ```json
 {
   "token": "jwt_token_here",
@@ -524,9 +552,11 @@ Register a new user.
 ```
 
 #### **POST** `/auth/login`
+
 Authenticate user.
 
 **Request:**
+
 ```json
 {
   "email": "user@example.com",
@@ -535,6 +565,7 @@ Authenticate user.
 ```
 
 **Response:**
+
 ```json
 {
   "token": "jwt_token_here",
@@ -543,11 +574,13 @@ Authenticate user.
 ```
 
 #### **GET** `/profile`
+
 Get user profile and statistics.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response:**
+
 ```json
 {
   "user": {
@@ -568,11 +601,13 @@ Get user profile and statistics.
 ### Project Endpoints
 
 #### **POST** `/projects`
+
 Create a new project.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "name": "My Project",
@@ -582,21 +617,25 @@ Create a new project.
 ```
 
 #### **GET** `/projects`
+
 List all user projects.
 
 **Headers:** `Authorization: Bearer <token>`
 
 #### **GET** `/projects/:id`
+
 Get project details.
 
 **Headers:** `Authorization: Bearer <token>`
 
 #### **PUT** `/projects/:id`
+
 Update project.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "name": "Updated Name",
@@ -606,6 +645,7 @@ Update project.
 ```
 
 #### **DELETE** `/projects/:id`
+
 Delete project.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -613,11 +653,13 @@ Delete project.
 ### DSL Processing Endpoints
 
 #### **POST** `/validate`
+
 Validate DSL content.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "yaml": "project: test\ntargets: []\n..."
@@ -625,6 +667,7 @@ Validate DSL content.
 ```
 
 **Response:**
+
 ```json
 {
   "valid": true,
@@ -637,11 +680,13 @@ Validate DSL content.
 ```
 
 #### **POST** `/generate`
+
 Generate all artifacts (ERD, lineage, mapping matrix, SQL).
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "yaml": "project: test\n..."
@@ -649,6 +694,7 @@ Generate all artifacts (ERD, lineage, mapping matrix, SQL).
 ```
 
 **Response:**
+
 ```json
 {
   "sql": {
@@ -671,6 +717,7 @@ Generate all artifacts (ERD, lineage, mapping matrix, SQL).
 ### Creating Your First Project
 
 1. **Start Both Servers**
+
    ```bash
    # Terminal 1 - Backend
    cd backend && npm run dev
@@ -798,6 +845,7 @@ mappings:
    - Add comments for complex logic
 
 3. **Commit Changes**
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
@@ -842,6 +890,7 @@ npm run build
 ### Environment Variables
 
 **Backend `.env`:**
+
 ```env
 PORT=5000
 JWT_SECRET=your_secret_key_here
@@ -850,13 +899,14 @@ NODE_ENV=development
 ```
 
 **Frontend `.env`:**
+
 ```env
 VITE_API_URL=http://localhost:5000
 ```
 
 ---
 
-##✅ Testing
+## ✅ Testing
 
 ### Test Structure
 
@@ -907,6 +957,7 @@ npm test parser.test.ts
 ### GitHub Actions
 
 The project includes automated DSL validation via GitHub Actions. The workflow runs on:
+
 - Pull requests affecting `.yaml`, `.yml`, or `.dbdoc` files
 - Pushes to `main` or `master` branches
 - Changes to backend source code or schemas
@@ -914,6 +965,7 @@ The project includes automated DSL validation via GitHub Actions. The workflow r
 **Workflow file:** [`.github/workflows/validate-dsl.yml`](file:///home/batman/Desktop/antigravity/GLS/.github/workflows/validate-dsl.yml)
 
 **What it does:**
+
 1. Checks out the repository
 2. Sets up Node.js 18
 3. Installs dependencies
@@ -1025,6 +1077,7 @@ deploy-docs:
 #### Backend (Node.js Server)
 
 **Option 1: Docker**
+
 ```dockerfile
 FROM node:18-alpine
 WORKDIR /app
@@ -1037,6 +1090,7 @@ EXPOSE 5000
 ```
 
 **Option 2: PM2**
+
 ```bash
 npm install -g pm2
 cd backend
@@ -1047,6 +1101,7 @@ pm2 start dist/server.js --name dbdoc-backend
 #### Frontend (Static Site)
 
 **Option 1: Netlify/Vercel**
+
 ```bash
 cd frontend
 npm run build
@@ -1054,6 +1109,7 @@ npm run build
 ```
 
 **Option 2: GitHub Pages**
+
 ```yaml
 # .github/workflows/deploy.yml
 name: Deploy to GitHub Pages
@@ -1089,6 +1145,7 @@ cp db/dbdoc.db db/dbdoc.backup.db
 ## 🗺️ Roadmap
 
 ### ✅ Completed (v2.2)
+
 - [x] User authentication & authorization
 - [x] Project CRUD operations
 - [x] DSL parser & validator
@@ -1100,17 +1157,20 @@ cp db/dbdoc.db db/dbdoc.backup.db
 - [x] Responsive UI with dark mode
 
 ### 🚧 In Progress (v2.3 - Phase 1: P0)
+
 - [ ] CI/CD integration with GitHub Actions
 - [ ] Automated testing suite (80%+ coverage)
 - [ ] Static HTML documentation site generator
 - [ ] CLI validation command with exit codes
 
 ### 📋 Planned (v3.0 - Phase 2: P1)
+
 - [ ] Transform library (lower, upper, concat, etc.)
 - [ ] Enhanced CLI tool (init, validate, generate, serve)
 - [ ] Transform validation and execution
 
 ### 🔮 Future (v4.0+ - Phase 3: P2-P3)
+
 - [ ] Database introspection (PostgreSQL, MongoDB, Snowflake)
 - [ ] Version control & change tracking
 - [ ] Data governance & PII detection
@@ -1175,13 +1235,14 @@ MIT License - see LICENSE file for details
 ## 👥 Team
 
 **Created by IIITH Students (2025):**
+
 - **Vinit Jain** - [@jainvinit0302](https://github.com/jainvinit0302)
 - **Rinkesh Verma**
 - **Kedar Dalvi**
 - **Jagadish Kollu**
 - **Suresh Kumar**
 
-**Contact:** saianirudh.karre@iiit.ac.in
+**Contact:** <saianirudh.karre@iiit.ac.in>
 
 ---
 
