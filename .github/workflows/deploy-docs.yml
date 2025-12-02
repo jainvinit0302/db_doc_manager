@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - testaction
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch: {}
 
 permissions:
   contents: write

@@ -12,6 +12,8 @@ on:
     branches:
       - main
       - master
+      - testaction
+  workflow_dispatch: {}
 
 jobs:
   validate-dsl:
