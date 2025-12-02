@@ -341,6 +341,10 @@ async function generateCommand(fileOrDir: string, options: any) {
     }
 
     // Create output directories
+    if (fs.existsSync(outDir)) {
+      console.log(chalk.gray(`Cleaning output directory: ${outDir}`));
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
     ensureDir(outDir);
     const artifactsDir = path.join(outDir, 'artifacts');
     const erdDir = path.join(outDir, 'erd');

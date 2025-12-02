@@ -641,7 +641,10 @@ function generateMappingsPage(ast: NormalizedAST, outDir: string) {
     </nav>
 
     <div class="card">
-      <h2>All Source-to-Target Mappings</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">
+        <h2 style="margin: 0; border: none;">All Source-to-Target Mappings</h2>
+        <a href="mapping_matrix.csv" class="btn" style="text-decoration: none; background: #48bb78; color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500;">⬇️ Download CSV</a>
+      </div>
       <p>Complete lineage showing how source data flows into target columns.</p>
       <table>
         <thead>
@@ -680,8 +683,8 @@ function generateERDPage(ast: NormalizedAST, outDir: string) {
   if (fs.existsSync(erdDir)) {
     const files = fs.readdirSync(erdDir).filter(f => f.endsWith('.mmd'));
     if (files.length > 0) {
-      // Prefer erd_all.mmd or similar if exists, otherwise take the first one
-      const mainFile = files.find(f => f.includes('erd')) || files[0];
+      // Prioritize erd_all.mmd to show the full diagram with all relationships
+      const mainFile = files.find(f => f === 'erd_all.mmd') || files.find(f => f.startsWith('erd_')) || files[0];
       mermaidContent = fs.readFileSync(path.join(erdDir, mainFile), 'utf8');
     }
   }
@@ -1080,7 +1083,7 @@ function generateLineagePage(ast: NormalizedAST, outDir: string) {
         wheelSensitivity: 0.2,
       });
 
-      fetch('lineage/lineage.json')
+      fetch('lineage/lineage.json?t=' + new Date().getTime())
         .then(response => response.json())
         .then(data => {
           fullData = data;
