@@ -9,20 +9,20 @@ import { NormalizedAST } from './parser';
  */
 
 function ensureDir(dirPath: string) {
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-    }
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
 }
 
 function escapeHtml(text: string): string {
-    const map: Record<string, string> = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 const CSS_STYLES = `
@@ -260,12 +260,12 @@ footer {
 `;
 
 function generateIndexPage(ast: NormalizedAST, outDir: string) {
-    const tables = Object.keys(ast.targets).sort();
-    const tableCards = tables.map(key => {
-        const table = ast.targets[key];
-        const columnCount = Object.keys(table.columns || {}).length;
+  const tables = Object.keys(ast.targets).sort();
+  const tableCards = tables.map(key => {
+    const table = ast.targets[key];
+    const columnCount = Object.keys(table.columns || {}).length;
 
-        return `
+    return `
       <div class="table-card">
         <h3><a href="tables/${key}.html">${escapeHtml(table.table)}</a></h3>
         <p>${escapeHtml(table.description || 'No description')}</p>
@@ -275,9 +275,9 @@ function generateIndexPage(ast: NormalizedAST, outDir: string) {
         </div>
       </div>
     `;
-    }).join('');
+  }).join('');
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -300,6 +300,8 @@ function generateIndexPage(ast: NormalizedAST, outDir: string) {
       <a href="tables/index.html">📊 Tables</a>
       <a href="sources.html">🔌 Sources</a>
       <a href="mappings.html">🔗 Mappings</a>
+      <a href="erd.html">📐 ER Diagram</a>
+      <a href="lineage.html">🕸️ Lineage Graph</a>
     </nav>
 
     <div class="card">
@@ -343,35 +345,35 @@ function generateIndexPage(ast: NormalizedAST, outDir: string) {
 </html>
   `;
 
-    fs.writeFileSync(path.join(outDir, 'index.html'), html, 'utf8');
+  fs.writeFileSync(path.join(outDir, 'index.html'), html, 'utf8');
 }
 
 function generateTablePage(key: string, table: any, ast: NormalizedAST, outDir: string) {
-    const columns = Object.entries(table.columns || {});
+  const columns = Object.entries(table.columns || {});
 
-    const columnRows = columns.map(([colName, col]: [string, any]) => {
-        const constraints = [];
-        if (col.pk) constraints.push('<span class="badge badge-pk">PK</span>');
-        if (col.fk) constraints.push('<span class="badge badge-fk">FK</span>');
-        if (col.unique) constraints.push('<span class="badge badge-unique">UNIQUE</span>');
-        if (col.not_null) constraints.push('<span class="badge badge-not-null">NOT NULL</span>');
+  const columnRows = columns.map(([colName, col]: [string, any]) => {
+    const constraints = [];
+    if (col.pk) constraints.push('<span class="badge badge-pk">PK</span>');
+    if (col.fk) constraints.push('<span class="badge badge-fk">FK</span>');
+    if (col.unique) constraints.push('<span class="badge badge-unique">UNIQUE</span>');
+    if (col.not_null) constraints.push('<span class="badge badge-not-null">NOT NULL</span>');
 
-        // Find mapping for this column
-        const mapping = ast.mappings.find(m =>
-            m.target.db === table.db &&
-            m.target.schema === table.schema &&
-            m.target.table === table.table &&
-            m.target.column === colName
-        );
+    // Find mapping for this column
+    const mapping = ast.mappings.find(m =>
+      m.target.db === table.db &&
+      m.target.schema === table.schema &&
+      m.target.table === table.table &&
+      m.target.column === colName
+    );
 
-        let source = '-';
-        if (mapping?.from?.source_id && mapping?.from?.path) {
-            source = `<code>${escapeHtml(mapping.from.source_id)}:${escapeHtml(mapping.from.path)}</code>`;
-        } else if (mapping?.from?.rule) {
-            source = `<code>${escapeHtml(mapping.from.rule)}</code>`;
-        }
+    let source = '-';
+    if (mapping?.from?.source_id && mapping?.from?.path) {
+      source = `<code>${escapeHtml(mapping.from.source_id)}:${escapeHtml(mapping.from.path)}</code>`;
+    } else if (mapping?.from?.rule) {
+      source = `<code>${escapeHtml(mapping.from.rule)}</code>`;
+    }
 
-        return `
+    return `
       <tr>
         <td><strong>${escapeHtml(colName)}</strong></td>
         <td><code>${escapeHtml(col.type)}</code></td>
@@ -381,9 +383,9 @@ function generateTablePage(key: string, table: any, ast: NormalizedAST, outDir: 
         <td>${col.default ? `<code>${escapeHtml(String(col.default))}</code>` : '-'}</td>
       </tr>
     `;
-    }).join('');
+  }).join('');
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -406,6 +408,8 @@ function generateTablePage(key: string, table: any, ast: NormalizedAST, outDir: 
       <a href="index.html">📊 Tables</a>
       <a href="../sources.html">🔌 Sources</a>
       <a href="../mappings.html">🔗 Mappings</a>
+      <a href="../erd.html">📐 ER Diagram</a>
+      <a href="../lineage.html">🕸️ Lineage Graph</a>
     </nav>
 
     <div class="card">
@@ -443,16 +447,16 @@ function generateTablePage(key: string, table: any, ast: NormalizedAST, outDir: 
 </html>
   `;
 
-    fs.writeFileSync(path.join(outDir, `${key}.html`), html, 'utf8');
+  fs.writeFileSync(path.join(outDir, `${key}.html`), html, 'utf8');
 }
 
 function generateTableIndex(ast: NormalizedAST, outDir: string) {
-    const tables = Object.keys(ast.targets).sort();
+  const tables = Object.keys(ast.targets).sort();
 
-    const tableList = tables.map(key => {
-        const table = ast.targets[key];
-        const columnCount = Object.keys(table.columns || {}).length;
-        return `
+  const tableList = tables.map(key => {
+    const table = ast.targets[key];
+    const columnCount = Object.keys(table.columns || {}).length;
+    return `
       <tr>
         <td><a href="${key}.html"><strong>${escapeHtml(table.table)}</strong></a></td>
         <td><code>${escapeHtml(table.db)}.${escapeHtml(table.schema)}</code></td>
@@ -460,9 +464,9 @@ function generateTableIndex(ast: NormalizedAST, outDir: string) {
         <td>${escapeHtml(table.description || '-')}</td>
       </tr>
     `;
-    }).join('');
+  }).join('');
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -485,6 +489,8 @@ function generateTableIndex(ast: NormalizedAST, outDir: string) {
       <a href="index.html">📊 Tables</a>
       <a href="../sources.html">🔌 Sources</a>
       <a href="../mappings.html">🔗 Mappings</a>
+      <a href="../erd.html">📐 ER Diagram</a>
+      <a href="../lineage.html">🕸️ Lineage Graph</a>
     </nav>
 
     <div class="card">
@@ -512,14 +518,14 @@ function generateTableIndex(ast: NormalizedAST, outDir: string) {
 </html>
   `;
 
-    fs.writeFileSync(path.join(outDir, 'index.html'), html, 'utf8');
+  fs.writeFileSync(path.join(outDir, 'index.html'), html, 'utf8');
 }
 
 function generateSourcesPage(ast: NormalizedAST, outDir: string) {
-    const sources = Object.entries(ast.sources);
+  const sources = Object.entries(ast.sources);
 
-    const sourceRows = sources.map(([id, source]: [string, any]) => {
-        return `
+  const sourceRows = sources.map(([id, source]: [string, any]) => {
+    return `
       <tr>
         <td><code>${escapeHtml(id)}</code></td>
         <td><span class="badge" style="background: #bee3f8; color: #2c5282;">${escapeHtml(source.kind || 'unknown')}</span></td>
@@ -528,9 +534,9 @@ function generateSourcesPage(ast: NormalizedAST, outDir: string) {
         <td>${escapeHtml(source.description || '-')}</td>
       </tr>
     `;
-    }).join('');
+  }).join('');
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -553,6 +559,8 @@ function generateSourcesPage(ast: NormalizedAST, outDir: string) {
       <a href="tables/index.html">📊 Tables</a>
       <a href="sources.html">🔌 Sources</a>
       <a href="mappings.html">🔗 Mappings</a>
+      <a href="erd.html">📐 ER Diagram</a>
+      <a href="lineage.html">🕸️ Lineage Graph</a>
     </nav>
 
     <div class="card">
@@ -582,22 +590,22 @@ function generateSourcesPage(ast: NormalizedAST, outDir: string) {
 </html>
   `;
 
-    fs.writeFileSync(path.join(outDir, 'sources.html'), html, 'utf8');
+  fs.writeFileSync(path.join(outDir, 'sources.html'), html, 'utf8');
 }
 
 function generateMappingsPage(ast: NormalizedAST, outDir: string) {
-    const mappingRows = ast.mappings.map((m: any) => {
-        const sourceDisplay = m.from?.source_id
-            ? `<code>${escapeHtml(m.from.source_id)}:${escapeHtml(m.from.path || '')}</code>`
-            : (m.from?.rule ? `<code>RULE: ${escapeHtml(m.from.rule)}</code>` : '-');
+  const mappingRows = ast.mappings.map((m: any) => {
+    const sourceDisplay = m.from?.source_id
+      ? `<code>${escapeHtml(m.from.source_id)}:${escapeHtml(m.from.path || '')}</code>`
+      : (m.from?.rule ? `<code>RULE: ${escapeHtml(m.from.rule)}</code>` : '-');
 
-        const transformDisplay = m.from?.transform
-            ? `<code>${escapeHtml(m.from.transform)}</code>`
-            : '-';
+    const transformDisplay = m.from?.transform
+      ? `<code>${escapeHtml(m.from.transform)}</code>`
+      : '-';
 
-        const notesDisplay = m.notes ? escapeHtml(m.notes) : '-';
+    const notesDisplay = m.notes ? escapeHtml(m.notes) : '-';
 
-        return `
+    return `
       <tr>
         <td><code>${escapeHtml(m.rawTarget)}</code></td>
         <td>${sourceDisplay}</td>
@@ -605,9 +613,9 @@ function generateMappingsPage(ast: NormalizedAST, outDir: string) {
         <td>${notesDisplay}</td>
       </tr>
     `;
-    }).join('');
+  }).join('');
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -661,39 +669,474 @@ function generateMappingsPage(ast: NormalizedAST, outDir: string) {
 </html>
   `;
 
-    fs.writeFileSync(path.join(outDir, 'mappings.html'), html, 'utf8');
+  fs.writeFileSync(path.join(outDir, 'mappings.html'), html, 'utf8');
+}
+
+function generateERDPage(ast: NormalizedAST, outDir: string) {
+  // Read generated mermaid files
+  const erdDir = path.join(outDir, 'erd');
+  let mermaidContent = '';
+
+  if (fs.existsSync(erdDir)) {
+    const files = fs.readdirSync(erdDir).filter(f => f.endsWith('.mmd'));
+    if (files.length > 0) {
+      // Prefer erd_all.mmd or similar if exists, otherwise take the first one
+      const mainFile = files.find(f => f.includes('erd')) || files[0];
+      mermaidContent = fs.readFileSync(path.join(erdDir, mainFile), 'utf8');
+    }
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ER Diagram - ${escapeHtml(ast.project)}</title>
+  <style>${CSS_STYLES}</style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+  </script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>📐 Entity Relationship Diagram</h1>
+      <p class="subtitle">${escapeHtml(ast.project)} - Visual Schema Structure</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav>
+      <a href="index.html">🏠 Home</a>
+      <a href="tables/index.html">📊 Tables</a>
+      <a href="sources.html">🔌 Sources</a>
+      <a href="mappings.html">🔗 Mappings</a>
+      <a href="erd.html">📐 ER Diagram</a>
+      <a href="lineage.html">🕸️ Lineage Graph</a>
+    </nav>
+
+    <div class="card">
+      <h2>Database Schema Diagram</h2>
+      <div class="mermaid">
+${mermaidContent || '%% No ERD generated'}
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Generated by <strong>DBDocManager</strong></p>
+  </footer>
+</body>
+</html>
+  `;
+
+  fs.writeFileSync(path.join(outDir, 'erd.html'), html, 'utf8');
+}
+
+function generateLineagePage(ast: NormalizedAST, outDir: string) {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lineage Graph - ${escapeHtml(ast.project)}</title>
+  <style>${CSS_STYLES}</style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+  <style>
+    #cy {
+      width: 100%;
+      height: 800px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .controls {
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 1rem;
+    }
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      background: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #f7fafc;
+    }
+    .btn.active {
+      background: #ebf8ff;
+      border-color: #4299e1;
+      color: #2b6cb0;
+    }
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #718096;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>🕸️ Lineage Graph</h1>
+      <p class="subtitle">${escapeHtml(ast.project)} - Visual Data Lineage</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav>
+      <a href="index.html">🏠 Home</a>
+      <a href="tables/index.html">📊 Tables</a>
+      <a href="sources.html">🔌 Sources</a>
+      <a href="mappings.html">🔗 Mappings</a>
+      <a href="erd.html">📐 ER Diagram</a>
+      <a href="lineage.html">🕸️ Lineage Graph</a>
+    </nav>
+
+    <div class="card">
+      <h2>Interactive Lineage Graph</h2>
+      <div class="controls">
+        <button class="btn active" id="btn-table" onclick="setLineageLevel('table')">Table Level</button>
+        <button class="btn" id="btn-column" onclick="setLineageLevel('column')">Column Level</button>
+      </div>
+      <div id="cy"></div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Generated by <strong>DBDocManager</strong></p>
+  </footer>
+
+  <script>
+    let cy = null;
+    let fullData = null;
+    let currentLevel = 'table';
+
+    const style = [
+      {
+        selector: 'node[type="source"]',
+        style: {
+          "background-color": "#fef08a",
+          "color": "#713f12",
+          label: "data(label)",
+          shape: "round-rectangle",
+          "text-valign": "center",
+          "text-halign": "center",
+          "width": "label",
+          "padding": "16px",
+          "font-weight": "bold",
+          "border-width": 2,
+          "border-color": "#eab308",
+        },
+      },
+      {
+        selector: 'node[type="table"]',
+        style: {
+          "background-color": "#bfdbfe",
+          color: "#1e3a8a",
+          label: "data(label)",
+          "text-valign": "center",
+          "text-halign": "center",
+          shape: "round-rectangle",
+          "width": "label",
+          "padding": "16px",
+          "font-weight": "bold",
+          "border-width": 2,
+          "border-color": "#3b82f6",
+        },
+      },
+      {
+        selector: 'node[type="column"]',
+        style: {
+          "background-color": "#99f6e4",
+          "color": "#134e4a",
+          label: "data(label)",
+          shape: "ellipse",
+          "text-valign": "center",
+          "text-halign": "center",
+          "width": "label",
+          "padding": "12px",
+          "border-width": 2,
+          "border-color": "#14b8a6",
+        },
+      },
+      {
+        selector: 'node[type="source_column"]',
+        style: {
+          "background-color": "#fed7aa",
+          "color": "#7c2d12",
+          label: "data(label)",
+          shape: "ellipse",
+          "text-valign": "center",
+          "text-halign": "center",
+          "width": "label",
+          "padding": "12px",
+          "border-width": 2,
+          "border-color": "#f97316",
+        },
+      },
+      {
+        selector: 'node[type="rule"]',
+        style: {
+          "background-color": "#e9d5ff",
+          "color": "#581c87",
+          label: "data(label)",
+          shape: "diamond",
+          "text-valign": "center",
+          "text-halign": "center",
+          "width": "label",
+          "padding": "12px",
+          "border-width": 2,
+          "border-color": "#a855f7",
+        },
+      },
+      {
+        selector: 'edge[type="column_lineage"]',
+        style: {
+          "curve-style": "bezier",
+          "target-arrow-shape": "triangle",
+          "line-color": "#94a3b8",
+          "target-arrow-color": "#94a3b8",
+          width: 2,
+          "arrow-scale": 1.2,
+        },
+      },
+      {
+        selector: 'edge[type="table_lineage"]',
+        style: {
+          width: 3,
+          "line-color": "#475569",
+          "target-arrow-shape": "triangle",
+          "target-arrow-color": "#475569",
+          "arrow-scale": 1.5,
+          "curve-style": "bezier",
+        },
+      },
+      {
+        selector: "node:selected",
+        style: {
+          "border-width": 4,
+          "border-color": "#ef4444",
+          "background-color": "#f87171",
+        },
+      },
+    ];
+
+    function renderGraph() {
+      if (!cy || !fullData) return;
+      
+      cy.elements().remove();
+      
+      const elements = [];
+      const addedNodeIds = new Set();
+      const nodeById = new Map();
+      (fullData.nodes || []).forEach(n => nodeById.set(n.id, n));
+
+      function addNodeIfNeeded(n) {
+        if (!n || !n.id) return;
+        if (addedNodeIds.has(n.id)) return;
+        addedNodeIds.add(n.id);
+        elements.push({
+          data: {
+            id: n.id,
+            label: n.label || n.id,
+            type: n.type || "node",
+            meta: n.meta || {},
+          },
+        });
+      }
+
+      if (currentLevel === 'table') {
+        (fullData.nodes || []).forEach(n => {
+          if (n.type === "source" || n.type === "table" || n.type === "rule") {
+            addNodeIfNeeded(n);
+          }
+        });
+
+        (fullData.table_edges || []).forEach(te => {
+          const srcId = te.source;
+          const tgtId = te.target;
+          if (nodeById.has(srcId)) addNodeIfNeeded(nodeById.get(srcId));
+          else addNodeIfNeeded({ id: srcId, label: srcId, type: srcId.startsWith("src:") ? "source" : "rule" });
+          
+          if (nodeById.has(tgtId)) addNodeIfNeeded(nodeById.get(tgtId));
+          else addNodeIfNeeded({ id: tgtId, label: tgtId, type: "table" });
+
+          elements.push({
+            data: {
+              id: te.id || \`table_edge_\${te.source}_\${te.target}_\${elements.length}\`,
+              source: te.source,
+              target: te.target,
+              type: "table_lineage",
+            },
+          });
+        });
+      } else {
+        // Column level logic
+        (fullData.nodes || []).forEach(n => {
+          if (n.type === "table" || n.type === "source") {
+            addNodeIfNeeded(n);
+          }
+        });
+
+        (fullData.nodes || []).forEach(n => {
+          if (n.type === "column") {
+            let parentId = null;
+            if (n.meta && n.meta.table) {
+              parentId = \`t:\${n.meta.table}\`;
+            } else {
+              const parts = n.id.split('.');
+              if (parts.length > 1) parentId = parts.slice(0, -1).join('.');
+            }
+
+            if (parentId && !addedNodeIds.has(parentId)) {
+              addNodeIfNeeded({ id: parentId, label: parentId, type: "table" });
+            }
+
+            if (!addedNodeIds.has(n.id)) {
+              addedNodeIds.add(n.id);
+              elements.push({
+                data: {
+                  id: n.id,
+                  label: n.label || n.id,
+                  type: n.type,
+                  parent: parentId,
+                  meta: n.meta || {},
+                },
+              });
+            }
+          } else if (n.type === "source_column") {
+            let parentId = null;
+            if (n.meta && n.meta.source_id) {
+              parentId = \`src:\${n.meta.source_id}\`;
+            }
+
+            if (parentId && !addedNodeIds.has(parentId)) {
+              addNodeIfNeeded({ id: parentId, label: parentId, type: "source" });
+            }
+
+            if (!addedNodeIds.has(n.id)) {
+              addedNodeIds.add(n.id);
+              elements.push({
+                data: {
+                  id: n.id,
+                  label: n.label || n.id,
+                  type: n.type,
+                  parent: parentId,
+                  meta: n.meta || {},
+                },
+              });
+            }
+          } else if (n.type === "rule") {
+            addNodeIfNeeded(n);
+          }
+        });
+
+        (fullData.edges || []).forEach(e => {
+          if (!addedNodeIds.has(e.source)) addNodeIfNeeded({ id: e.source, label: e.source, type: "node" });
+          if (!addedNodeIds.has(e.target)) addNodeIfNeeded({ id: e.target, label: e.target, type: "node" });
+
+          elements.push({
+            data: {
+              id: e.id || \`column_edge_\${e.source}_\${e.target}_\${elements.length}\`,
+              source: e.source,
+              target: e.target,
+              type: e.type || "column_lineage",
+            },
+          });
+        });
+      }
+
+      cy.add(elements);
+      cy.layout({
+        name: "dagre",
+        rankDir: "LR",
+        nodeSep: 40,
+        edgeSep: 8
+      }).run();
+    }
+
+    function setLineageLevel(level) {
+      currentLevel = level;
+      document.getElementById('btn-table').className = level === 'table' ? 'btn active' : 'btn';
+      document.getElementById('btn-column').className = level === 'column' ? 'btn active' : 'btn';
+      renderGraph();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: [],
+        style: style,
+        wheelSensitivity: 0.2,
+      });
+
+      fetch('lineage/lineage.json')
+        .then(response => response.json())
+        .then(data => {
+          fullData = data;
+          renderGraph();
+        })
+        .catch(err => {
+          console.error('Error loading lineage data:', err);
+          document.getElementById('cy').innerHTML = '<div class="loading">Error loading lineage data. Please check console.</div>';
+        });
+    });
+  </script>
+</body>
+</html>
+    `;
+
+  fs.writeFileSync(path.join(outDir, 'lineage.html'), html, 'utf8');
 }
 
 export function generateStaticSite(ast: NormalizedAST, outDir: string) {
-    console.log('Generating static HTML documentation site...');
+  console.log('Generating static HTML documentation site...');
 
-    // Create directory structure
-    ensureDir(outDir);
-    const tablesDir = path.join(outDir, 'tables');
-    ensureDir(tablesDir);
+  // Create directory structure
+  ensureDir(outDir);
+  const tablesDir = path.join(outDir, 'tables');
+  ensureDir(tablesDir);
 
-    // Generate index page
-    generateIndexPage(ast, outDir);
-    console.log('✓ Generated index.html');
+  // Generate index page
+  generateIndexPage(ast, outDir);
+  console.log('✓ Generated index.html');
 
-    // Generate table pages
-    for (const [key, table] of Object.entries(ast.targets)) {
-        generateTablePage(key, table, ast, tablesDir);
-    }
-    console.log(`✓ Generated ${Object.keys(ast.targets).length} table pages`);
+  // Generate table pages
+  for (const [key, table] of Object.entries(ast.targets)) {
+    generateTablePage(key, table, ast, tablesDir);
+  }
+  console.log(`✓ Generated ${Object.keys(ast.targets).length} table pages`);
 
-    // Generate table index
-    generateTableIndex(ast, tablesDir);
-    console.log('✓ Generated tables/index.html');
+  // Generate table index
+  generateTableIndex(ast, tablesDir);
+  console.log('✓ Generated tables/index.html');
 
-    // Generate sources page
-    generateSourcesPage(ast, outDir);
-    console.log('✓ Generated sources.html');
+  // Generate sources page
+  generateSourcesPage(ast, outDir);
+  console.log('✓ Generated sources.html');
 
-    // Generate mappings page
-    generateMappingsPage(ast, outDir);
-    console.log('✓ Generated mappings.html');
+  // Generate mappings page
+  generateMappingsPage(ast, outDir);
+  console.log('✓ Generated mappings.html');
 
-    console.log(`\n✅ Static documentation site generated at: ${outDir}`);
-    console.log(`   Open ${path.join(outDir, 'index.html')} in your browser`);
+  // Generate ERD page
+  generateERDPage(ast, outDir);
+  console.log('✓ Generated erd.html');
+
+  // Generate lineage page
+  generateLineagePage(ast, outDir);
+  console.log('✓ Generated lineage.html');
+
+  console.log(`\n✅ Static documentation site generated at: ${outDir}`);
+  console.log(`   Open ${path.join(outDir, 'index.html')} in your browser`);
 }
